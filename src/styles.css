@@ -218,6 +218,77 @@ button:disabled {
   filter: blur(4px);
 }
 
+/* Le tube chauffe au lancement : image sombre et floue qui se stabilise. */
+.crt.is-warming {
+  animation: tube-warmup 2.3s cubic-bezier(0.3, 0.6, 0.3, 1) both;
+}
+
+@keyframes tube-warmup {
+  0% {
+    filter: brightness(0) blur(8px);
+    transform: scale(0.985);
+  }
+  15% {
+    filter: brightness(0.25) blur(6px) contrast(0.6);
+  }
+  45% {
+    filter: brightness(0.6) blur(3px) contrast(0.8);
+  }
+  75% {
+    filter: brightness(1.15) blur(1px);
+  }
+  100% {
+    filter: none;
+    transform: none;
+  }
+}
+
+/* Petits défauts analogiques : tremblement bref, respiration de la luminosité. */
+.crt.is-jitter .crt__warp {
+  animation: tube-jitter 0.26s steps(4) both;
+}
+
+@keyframes tube-jitter {
+  25% {
+    transform: translateX(-2px) skewX(0.6deg);
+  }
+  50% {
+    transform: translateX(1.5px);
+  }
+  75% {
+    transform: translate(-1px, 1px);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+.crt__breath {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: #000;
+  opacity: 0;
+  animation: tube-breath 1.6s ease-out both;
+}
+
+@keyframes tube-breath {
+  20% {
+    opacity: 0.12;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crt.is-warming,
+  .crt.is-jitter .crt__warp,
+  .crt__breath {
+    animation: none;
+  }
+}
+
 /* Signal crypté (interception) : canvas posé sur tout l’écran. */
 .crt__scramble {
   position: absolute;
@@ -2030,4 +2101,98 @@ button:disabled {
   border: 1px solid var(--ph);
   background: var(--bg);
   box-shadow: 0 0 30px var(--glow);
+}
+
+/* ------------------------------------------------------------------------ */
+/* Clavier rétro des indices                                                 */
+
+.clue-row__screen {
+  display: block;
+  width: 100%;
+  min-height: 38px;
+  padding: 3px 4px 2px;
+  border: 0;
+  border-bottom: 2px solid var(--faint);
+  background: transparent;
+  text-align: left;
+  font: 400 32px/1 var(--display);
+  letter-spacing: 0.05em;
+  color: var(--hi);
+  overflow-wrap: anywhere;
+}
+
+.clue-row.is-active .clue-row__screen {
+  border-bottom-color: var(--ph);
+  background: var(--wash);
+}
+
+.retro-kb {
+  position: sticky;
+  bottom: calc(-20px - env(safe-area-inset-bottom, 0px));
+  z-index: 4;
+  margin-inline: -6px;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)) !important;
+  display: grid;
+  gap: 6px;
+  padding: 10px 8px;
+  border: 1px solid var(--faint);
+  border-radius: 6px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--bg) 70%, #000), var(--bg));
+  box-shadow:
+    inset 0 2px 8px rgba(0, 0, 0, 0.7),
+    0 -12px 24px rgba(0, 0, 0, 0.6);
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+.retro-kb__row {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.retro-kb__row--wide {
+  grid-template-columns: 1fr 3fr 1.6fr;
+}
+
+.retro-kb__key {
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--faint);
+  border-bottom-width: 4px;
+  border-radius: 4px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--ph) 16%, var(--bg)), color-mix(in srgb, var(--ph) 6%, var(--bg)));
+  font: 400 24px/1 var(--display);
+  color: var(--hi);
+  text-shadow: 0 0 6px var(--glow);
+  transition:
+    transform 0.05s,
+    border-bottom-width 0.05s;
+}
+
+.retro-kb__key:active {
+  transform: translateY(3px);
+  border-bottom-width: 1px;
+  background: color-mix(in srgb, var(--ph) 28%, var(--bg));
+  box-shadow: 0 0 10px var(--glow);
+}
+
+.retro-kb__key--fn,
+.retro-kb__key--space {
+  font-size: 19px;
+  letter-spacing: 0.1em;
+}
+
+.retro-kb__key--fn:last-child {
+  background: var(--ph);
+  color: var(--bg);
+  text-shadow: none;
+}
+
+@media (max-width: 360px) {
+  .retro-kb__key {
+    height: 40px;
+    font-size: 21px;
+  }
 }

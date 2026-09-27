@@ -3,6 +3,7 @@
 type Sound =
   | "key"
   | "tick"
+  | "teletype"
   | "select"
   | "send"
   | "lock"
@@ -11,6 +12,8 @@ type Sound =
   | "intercept"
   | "boot"
   | "power"
+  | "pop"
+  | "poweron"
   | "alarm"
   | "victory"
   | "error"
@@ -22,6 +25,7 @@ const STORAGE_KEY = "signal-zero:sound";
 
 let context: AudioContext | null = null;
 let enabled = readEnabled();
+let noiseBuffer: AudioBuffer | null = null;
 
 function readEnabled(): boolean {
   try {
@@ -63,25 +67,45 @@ function tone(freq: number, start: number, duration: number, type: OscillatorTyp
   osc.frequency.setValueAtTime(freq, t0);
   if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, t0 + duration);
   gain.gain.setValueAtTime(0.0001, t0);
-  gain.gain.exponentialRampToValueAtTime(volume, t0 + 0.008);
+  gain.gain.exponentialRampToValueAtTime(volume, t0 + 0.006);
   gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
   osc.connect(gain).connect(context.destination);
   osc.start(t0);
   osc.stop(t0 + duration + 0.02);
 }
 
-function noise(start: number, duration: number, volume = 0.04) {
-  if (!context) return;
-  const length = Math.floor(context.sampleRate * duration);
-  const buffer = context.createBuffer(1, length, context.sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let i = 0; i < length; i += 1) data[i] = (Math.random() * 2 - 1) * (1 - i / length);
+function whiteNoise(): AudioBuffer | null {
+  if (!context) return null;
+  if (!noiseBuffer) {
+    const length = context.sampleRate;
+    noiseBuffer = context.createBuffer(1, length, context.sampleRate);
+    const data = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < length; i += 1) data[i] = Math.random() * 2 - 1;
+  }
+  return noiseBuffer;
+}
+
+/** Souffle filtré : la base des bruits mécaniques (touches, marteaux, grésillement). */
+function noise(start: number, duration: number, volume = 0.04, filter?: { type: BiquadFilterType; freq: number; q?: number }) {
+  const buffer = whiteNoise();
+  if (!context || !buffer) return;
+  const t0 = context.currentTime + start;
   const source = context.createBufferSource();
-  const gain = context.createGain();
-  gain.gain.value = volume;
   source.buffer = buffer;
-  source.connect(gain).connect(context.destination);
-  source.start(context.currentTime + start);
+  const gain = context.createGain();
+  gain.gain.setValueAtTime(volume, t0);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+  let node: AudioNode = source;
+  if (filter) {
+    const biquad = context.createBiquadFilter();
+    biquad.type = filter.type;
+    biquad.frequency.value = filter.freq;
+    biquad.Q.value = filter.q ?? 1;
+    node = source.connect(biquad);
+  }
+  node.connect(gain).connect(context.destination);
+  source.start(t0, Math.random() * 0.5);
+  source.stop(t0 + duration + 0.02);
 }
 
 let lastTick = 0;
@@ -89,22 +113,34 @@ let lastTick = 0;
 export function play(sound: Sound): void {
   if (!enabled || !context) return;
   switch (sound) {
-    case "key":
-      tone(1200, 0, 0.025, "square", 0.018);
-      break;
-    case "tick": {
-      const now = performance.now();
-      if (now - lastTick < 45) return;
-      lastTick = now;
-      tone(2200 + Math.random() * 400, 0, 0.012, "square", 0.012);
+    case "key": {
+      // Touche mécanique : clic aigu puis choc sourd du fond de course.
+      const v = 0.9 + Math.random() * 0.2;
+      noise(0, 0.018, 0.22 * v, { type: "bandpass", freq: 3200 + Math.random() * 600, q: 1.4 });
+      noise(0.012, 0.045, 0.12 * v, { type: "lowpass", freq: 700 });
+      tone(150 + Math.random() * 20, 0.01, 0.04, "sine", 0.05 * v);
       break;
     }
+    case "tick": {
+      // Marteau de téléscripteur, limité pour ne pas saturer.
+      const now = performance.now();
+      if (now - lastTick < 40) return;
+      lastTick = now;
+      noise(0, 0.02, 0.1, { type: "bandpass", freq: 2400, q: 2 });
+      tone(90, 0, 0.03, "square", 0.012);
+      break;
+    }
+    case "teletype":
+      // Sonnerie de téléscripteur : deux bips secs.
+      tone(1150, 0, 0.07, "square", 0.035);
+      tone(1150, 0.1, 0.07, "square", 0.035);
+      break;
     case "select":
       tone(880, 0, 0.05, "square", 0.03);
       break;
     case "send":
       [660, 880, 1320].forEach((f, i) => tone(f, i * 0.07, 0.08, "square", 0.035));
-      noise(0.2, 0.25, 0.02);
+      noise(0.2, 0.25, 0.03, { type: "highpass", freq: 1500 });
       break;
     case "lock":
       tone(440, 0, 0.06, "square", 0.04);
@@ -121,11 +157,23 @@ export function play(sound: Sound): void {
       [1400, 700, 1400, 700].forEach((f, i) => tone(f, 0.05 + i * 0.09, 0.08, "square", 0.04));
       break;
     case "boot":
-      tone(60, 0, 0.6, "sawtooth", 0.04, 180);
-      noise(0, 0.5, 0.025);
+      // Le tube chauffe : bourdonnement qui monte et sifflement aigu.
+      tone(55, 0, 2.2, "sawtooth", 0.03, 120);
+      tone(15600, 0.4, 1.8, "sine", 0.006);
+      noise(0, 0.6, 0.03, { type: "lowpass", freq: 900 });
       break;
     case "power":
       tone(1800, 0, 0.18, "sine", 0.03, 120);
+      break;
+    case "pop":
+      // Télé qui s’éteint : « pop » grave et craquement statique.
+      tone(95, 0, 0.18, "sine", 0.12, 40);
+      noise(0, 0.12, 0.09, { type: "lowpass", freq: 1800 });
+      tone(9000, 0.02, 0.25, "sine", 0.008, 2000);
+      break;
+    case "poweron":
+      noise(0, 0.22, 0.05, { type: "highpass", freq: 2500 });
+      tone(60, 0, 0.35, "sawtooth", 0.025, 110);
       break;
     case "alarm":
       tone(988, 0, 0.12, "square", 0.04);
@@ -138,15 +186,15 @@ export function play(sound: Sound): void {
       tone(160, 0, 0.14, "square", 0.04);
       break;
     case "reel":
-      tone(520, 0, 0.03, "square", 0.03);
-      tone(260, 0.03, 0.05, "square", 0.025);
+      noise(0, 0.03, 0.12, { type: "bandpass", freq: 1800, q: 3 });
+      tone(260, 0.02, 0.05, "square", 0.025);
       break;
     case "drop":
       tone(110, 0, 0.16, "sine", 0.09, 60);
-      noise(0, 0.05, 0.05);
+      noise(0, 0.04, 0.12, { type: "bandpass", freq: 2600, q: 2 });
       break;
     case "static":
-      noise(0, 1.1, 0.05);
+      noise(0, 1.1, 0.05, { type: "highpass", freq: 800 });
       tone(15600, 0, 1.1, "sine", 0.004);
       break;
   }
@@ -161,7 +209,50 @@ export function vibrate(pattern: number | number[]): void {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Morse : bips et vibrations synchronisés pendant l’envoi des indices.
+
+const MORSE: Record<string, string> = {
+  A: ".-", B: "-...", C: "-.-.", D: "-..", E: ".", F: "..-.", G: "--.", H: "....", I: "..", J: ".---",
+  K: "-.-", L: ".-..", M: "--", N: "-.", O: "---", P: ".--.", Q: "--.-", R: ".-.", S: "...", T: "-",
+  U: "..-", V: "...-", W: ".--", X: "-..-", Y: "-.--", Z: "--..",
+};
+
+/** Émet un mot en morse (points 70 ms) par le haut-parleur et le vibreur. */
+export function morse(word: string, unit = 70): number {
+  const letters = word
+    .normalize("NFD")
+    .replace(/[^A-Za-z]/g, "")
+    .toUpperCase()
+    .slice(0, 4)
+    .split("")
+    .map((letter) => MORSE[letter])
+    .filter(Boolean);
+  const pattern: number[] = [];
+  let time = 0;
+  letters.forEach((code, li) => {
+    [...code].forEach((symbol, si) => {
+      const length = symbol === "." ? unit : unit * 3;
+      if (enabled && context) tone(760, time / 1000, length / 1000, "sine", 0.05);
+      pattern.push(length);
+      time += length;
+      const gap = si < code.length - 1 ? unit : li < letters.length - 1 ? unit * 3 : 0;
+      if (gap) {
+        pattern.push(gap);
+        time += gap;
+      }
+    });
+  });
+  vibrate(pattern);
+  return time;
+}
+
 /** Affiche le signal crypté par-dessus l’écran, avec un message qui perce le brouillage. */
 export function scramble(text: string): void {
   window.dispatchEvent(new CustomEvent("crt-scramble", { detail: text }));
+}
+
+/** Prévient le tube qu’une nouvelle image s’allume (légère « respiration » de la luminosité). */
+export function screenLoad(): void {
+  window.dispatchEvent(new CustomEvent("crt-load"));
 }

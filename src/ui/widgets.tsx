@@ -94,7 +94,7 @@ export function GuessPicker({
       {clues.map((clue, row) => (
         <div class={`picker__row${value[row] ? " is-set" : ""}`} key={row}>
           <span class="picker__ord">{LETTERS[row]}</span>
-          <span class="picker__clue">{animate ? <TypeText text={clue} delay={250 + row * 650} speed={55} /> : clue}</span>
+          <span class="picker__clue">{animate ? <TypeText text={clue} delay={250 + row * 650} speed={55} bell /> : clue}</span>
           <span class="picker__digits" role="group" aria-label={`Position de l’indice ${clue}`}>
             {[1, 2, 3, 4].map((digit) => (
               <button

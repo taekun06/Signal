@@ -2,7 +2,7 @@ import type { ComponentChildren, JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { PHOSPHOR, runScramble } from "../fx/canvasFx";
 import { supportsWarp, useScreenShape } from "../fx/display";
-import { play, vibrate } from "../fx/feedback";
+import { play, screenLoad, vibrate } from "../fx/feedback";
 import { type GameState, type TeamId, TEAM_IDS, currentRound } from "../game/rules";
 import { PixelIcon } from "./icons";
 
@@ -43,10 +43,50 @@ function ScrambleLayer({ tint }: { tint: Tint }) {
   return <canvas class={`crt__scramble${active ? " is-active" : ""}`} ref={ref} width={190} height={340} aria-hidden="true" />;
 }
 
+// Le tube ne chauffe qu’une fois, au lancement de l’application.
+let warmedUp = false;
+
 export function Crt({ tint, children }: { tint: Tint; children: ComponentChildren }) {
   const noiseRef = useRef<HTMLCanvasElement>(null);
   const [shape] = useScreenShape();
   const curved = shape === "curved";
+  const [warming, setWarming] = useState(() => !warmedUp && !reducedMotion());
+  const [jitter, setJitter] = useState(false);
+  const [breath, setBreath] = useState(0);
+
+  useEffect(() => {
+    warmedUp = true;
+    if (!warming) return;
+    const id = window.setTimeout(() => setWarming(false), 2300);
+    return () => clearTimeout(id);
+  }, []);
+
+  // Petits défauts analogiques : de temps en temps, l’image tremble un instant.
+  useEffect(() => {
+    if (reducedMotion()) return;
+    let timer = 0;
+    const schedule = () => {
+      timer = window.setTimeout(
+        () => {
+          setJitter(true);
+          timer = window.setTimeout(() => {
+            setJitter(false);
+            schedule();
+          }, 260);
+        },
+        7000 + Math.random() * 9000,
+      );
+    };
+    schedule();
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Quand une nouvelle image s’allume, la luminosité du tube « respire ».
+  useEffect(() => {
+    const onLoad = () => setBreath((n) => n + 1);
+    window.addEventListener("crt-load", onLoad);
+    return () => window.removeEventListener("crt-load", onLoad);
+  }, []);
 
   // Grain animé : quelques images de bruit tirées en boucle.
   useEffect(() => {
@@ -77,7 +117,10 @@ export function Crt({ tint, children }: { tint: Tint; children: ComponentChildre
 
   return (
     <div class="monitor" style={{ "--monitor-photo": `url("${new URL("crt-monitor.jpg", document.baseURI).href}")` }}>
-      <div class={`crt${curved ? " is-curved" : ""}${curved && supportsWarp ? " is-warped" : ""}`} data-tint={tint}>
+      <div
+        class={`crt${curved ? " is-curved" : ""}${curved && supportsWarp ? " is-warped" : ""}${warming ? " is-warming" : ""}${jitter ? " is-jitter" : ""}`}
+        data-tint={tint}
+      >
         <div class="crt__warp">
           <div class="crt__content">{children}</div>
         </div>
@@ -85,6 +128,7 @@ export function Crt({ tint, children }: { tint: Tint; children: ComponentChildre
         <div class="crt__scanlines" aria-hidden="true" />
         <div class="crt__scanbar" aria-hidden="true" />
         <div class="crt__vignette" aria-hidden="true" />
+        {breath > 0 && <div class="crt__breath" key={breath} aria-hidden="true" />}
         {curved && <div class="crt__glass" aria-hidden="true" />}
         <ScrambleLayer tint={tint} />
       </div>
@@ -122,7 +166,16 @@ export function PowerCycle({ id, offOn = false, children }: { id: string; offOn?
       first.current = false;
       return;
     }
-    play("power");
+    if (offOn) {
+      play("pop");
+      const on = window.setTimeout(() => {
+        play("poweron");
+        screenLoad();
+      }, 620);
+      return () => clearTimeout(on);
+    }
+    play("poweron");
+    screenLoad();
   }, [id]);
   const mode = skip ? "none" : offOn ? "offon" : "on";
   return (
@@ -136,7 +189,20 @@ export function PowerCycle({ id, offOn = false, children }: { id: string; offOn?
 // ---------------------------------------------------------------------------
 // Texte tapé comme sur un téléscripteur.
 
-export function TypeText({ text, delay = 0, speed = 38, cursor = false }: { text: string; delay?: number; speed?: number; cursor?: boolean }) {
+export function TypeText({
+  text,
+  delay = 0,
+  speed = 38,
+  cursor = false,
+  bell = false,
+}: {
+  text: string;
+  delay?: number;
+  speed?: number;
+  cursor?: boolean;
+  /** Sonnerie de téléscripteur au début du message (indices reçus). */
+  bell?: boolean;
+}) {
   const [count, setCount] = useState(() => (reducedMotion() ? text.length : 0));
   useEffect(() => {
     if (reducedMotion()) {
@@ -147,6 +213,7 @@ export function TypeText({ text, delay = 0, speed = 38, cursor = false }: { text
     let index = 0;
     let interval = 0;
     const start = window.setTimeout(() => {
+      if (bell) play("teletype");
       interval = window.setInterval(() => {
         index += 1;
         setCount(index);
