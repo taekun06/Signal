@@ -1,7 +1,7 @@
 import type { ComponentChildren, JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { PHOSPHOR, runScramble } from "../fx/canvasFx";
-import { supportsWarp, useScreenShape } from "../fx/display";
+import { supportsWarp, useImmersion, useScreenShape } from "../fx/display";
 import { play, screenLoad, setTension, vibrate } from "../fx/feedback";
 import { type GameState, type TeamId, TEAM_IDS, currentRound } from "../game/rules";
 import { PixelIcon } from "./icons";
@@ -112,6 +112,9 @@ export function Crt({ tint, tension = 0, children }: { tint: Tint; tension?: num
   useUiZoom(crtRef);
   useTiltReflection(crtRef);
   const [shape] = useScreenShape();
+  const [immersion] = useImmersion();
+  // Écran d’avant (réglage de comparaison) : pas de tension ni de reflet mobile.
+  if (immersion === "classic") tension = 0;
   const curved = shape === "curved";
   const [warming, setWarming] = useState(() => !warmedUp && !reducedMotion());
   const [jitter, setJitter] = useState(false);
@@ -206,7 +209,7 @@ export function Crt({ tint, tension = 0, children }: { tint: Tint; tension?: num
         <div class="crt__vignette" aria-hidden="true" />
         {breath > 0 && <div class="crt__breath" key={breath} aria-hidden="true" />}
         {curved && <div class="crt__glass" aria-hidden="true" />}
-        <div class="crt__reflection" aria-hidden="true" />
+        {immersion === "new" && <div class="crt__reflection" aria-hidden="true" />}
         <ScrambleLayer tint={tint} />
       </div>
       <span class="monitor__led" aria-hidden="true" />

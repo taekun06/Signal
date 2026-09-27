@@ -87,3 +87,40 @@ export function useKeyboardKind(): [KeyboardKind, (kind: KeyboardKind) => void] 
   };
   return [kind, update];
 }
+
+// ---------------------------------------------------------------------------
+// Immersion : la version enrichie (faisceau, émission maintenue, déchiffrement,
+// tube sous tension) ou l’écran d’avant, pour comparer.
+
+export type Immersion = "new" | "classic";
+
+const IMMERSION_KEY = "signal-zero:immersion";
+const immersionListeners = new Set<(value: Immersion) => void>();
+
+let immersion: Immersion = (() => {
+  try {
+    return localStorage.getItem(IMMERSION_KEY) === "classic" ? "classic" : "new";
+  } catch {
+    return "new";
+  }
+})();
+
+export function useImmersion(): [Immersion, (value: Immersion) => void] {
+  const [value, setValue] = useState(immersion);
+  useEffect(() => {
+    immersionListeners.add(setValue);
+    return () => {
+      immersionListeners.delete(setValue);
+    };
+  }, []);
+  const update = (next: Immersion) => {
+    immersion = next;
+    try {
+      localStorage.setItem(IMMERSION_KEY, next);
+    } catch {
+      /* Réglage conservé pour la session. */
+    }
+    immersionListeners.forEach((listener) => listener(next));
+  };
+  return [value, update];
+}

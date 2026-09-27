@@ -1,6 +1,6 @@
 import { useEffect, useState } from "preact/hooks";
 import { enableMotion, keepScreenOn, promptInstall, toggleFullscreen, useDevice } from "../fx/device";
-import { useScreenShape } from "../fx/display";
+import { useImmersion, useScreenShape } from "../fx/display";
 import { play, setSoundEnabled, soundEnabled, unlockAudio } from "../fx/feedback";
 import { type TeamId, MIN_PLAYERS, RuleError } from "../game/rules";
 import { WORDS } from "../game/words";
@@ -88,6 +88,7 @@ function Menu({ onNew, onResume, onRules }: { onNew: () => void; onResume: (save
   const [saved, setSaved] = useState(() => loadLocalGame());
   const [sound, setSound] = useState(soundEnabled());
   const [shape, setShape] = useScreenShape();
+  const [immersion, setImmersion] = useImmersion();
   const device = useDevice();
   const inProgress = saved && saved.state.phase !== "over";
   return (
@@ -126,6 +127,12 @@ function Menu({ onNew, onResume, onRules }: { onNew: () => void; onResume: (save
         <Button variant="ghost" onClick={() => setShape(shape === "curved" ? "flat" : "curved")}>
           ▶ ÉCRAN : {shape === "curved" ? "BOMBÉ" : "PLAT"}
           <small>{shape === "curved" ? "Tube cathodique légèrement bombé" : "Écran plat, lisibilité maximale"}</small>
+        </Button>
+        <Button variant="ghost" onClick={() => setImmersion(immersion === "new" ? "classic" : "new")}>
+          ▶ IMMERSION : {immersion === "new" ? "NOUVELLE" : "ANCIENNE"}
+          <small>
+            {immersion === "new" ? "Faisceau, émission maintenue, déchiffrement, tension" : "L’écran d’avant, pour comparer"}
+          </small>
         </Button>
         {device.canInstall && (
           <Button variant="ghost" onClick={() => void promptInstall()}>

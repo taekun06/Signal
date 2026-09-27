@@ -1,8 +1,8 @@
 import type { ComponentChildren } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { PHOSPHOR, runOscilloscope } from "../fx/canvasFx";
-import { useKeyboardKind } from "../fx/display";
-import { play, scramble, vibrate } from "../fx/feedback";
+import { useImmersion, useKeyboardKind } from "../fx/display";
+import { morse, play, scramble, vibrate } from "../fx/feedback";
 import {
   type Action,
   type GameState,
@@ -155,8 +155,17 @@ export function CluesScreen({ state, team, dispatch, toast }: ScreenProps) {
   // Transmettre ouvre la liaison : on vérifie d’abord les indices (sans rien
   // envoyer), puis le crypteur maintient l’émission jusqu’au bout.
   const [transmitting, setTransmitting] = useState(false);
+  const [immersion] = useImmersion();
+  const rich = immersion === "new";
   const send = () => {
     const current = cluesRef.current;
+    if (!rich) {
+      // Écran d’avant : envoi direct, le message part en morse (initiales des indices).
+      if (attempt(() => dispatch({ type: "submitClues", team, clues: current, now: Date.now() }), toast)) {
+        morse(current.map((clue) => clue.trim()[0] ?? "").join(""));
+      }
+      return;
+    }
     if (attempt(() => applyAction(state, { type: "submitClues", team, clues: current, now: Date.now() }), toast)) {
       hide(false);
       play("select");
@@ -200,15 +209,16 @@ export function CluesScreen({ state, team, dispatch, toast }: ScreenProps) {
   const show = () => {
     clearTimeout(decayTimer.current);
     setDecay(false);
-    play("beam");
-    vibrate(15);
+    play(rich ? "beam" : "select");
+    vibrate(rich ? 15 : 12);
     setVisible(true);
   };
   const hide = (fade = true) => {
     setVisible(false);
     clearTimeout(decayTimer.current);
-    if (!fade || reducedMotion()) {
+    if (!fade || !rich || reducedMotion()) {
       setDecay(false);
+      if (fade) play("key");
       return;
     }
     play("fade");
@@ -300,14 +310,14 @@ export function CluesScreen({ state, team, dispatch, toast }: ScreenProps) {
       </div>
       <button
         type="button"
-        class={`code-toggle clues__code${visible ? " is-open" : ""}${decay ? " is-decay" : ""}`}
-        onPointerDown={onCodeDown}
-        onPointerUp={onCodeUp}
-        onPointerCancel={onCodeCancel}
-        onContextMenu={(event) => event.preventDefault()}
+        class={`code-toggle clues__code${rich ? " is-rich" : ""}${visible ? " is-open" : ""}${decay ? " is-decay" : ""}`}
+        onPointerDown={rich ? onCodeDown : undefined}
+        onPointerUp={rich ? onCodeUp : undefined}
+        onPointerCancel={rich ? onCodeCancel : undefined}
+        onContextMenu={(event) => rich && event.preventDefault()}
         onClick={(event) => {
           // Clavier et lecteurs d’écran : pas d’événement de pointeur.
-          if (event.detail === 0) toggle();
+          if (!rich || event.detail === 0) toggle();
         }}
         aria-pressed={visible}
       >
@@ -319,7 +329,7 @@ export function CluesScreen({ state, team, dispatch, toast }: ScreenProps) {
             </b>
           ))}
         </span>
-        <span class="code-toggle__label">{visible ? "◉ MASQUER" : "◎ MAINTENIR POUR VOIR"}</span>
+        <span class="code-toggle__label">{visible ? "◉ MASQUER" : rich ? "◎ MAINTENIR POUR VOIR" : "◎ TOUCHER POUR AFFICHER"}</span>
       </button>
       <div class="clue-rows clues__rows">
         {clues.map((clue, index) => {

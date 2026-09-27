@@ -1,6 +1,6 @@
 import { useState } from "preact/hooks";
 import { toggleFullscreen, useDevice } from "../fx/device";
-import { useKeyboardKind, useScreenShape } from "../fx/display";
+import { useImmersion, useKeyboardKind, useScreenShape } from "../fx/display";
 import { setSoundEnabled, soundEnabled } from "../fx/feedback";
 import { type TeamId, currentRound, endOfRoundResult, otherTeam, pendingTeams } from "../game/rules";
 import { type LocalSave, randomSeed, useLocalGame } from "../net/localGame";
@@ -17,6 +17,7 @@ export function LocalGame({ initial, onExit }: { initial: LocalSave; onExit: () 
   const [sound, setSound] = useState(soundEnabled());
   const [shape, setShape] = useScreenShape();
   const [keyboard, setKeyboard] = useKeyboardKind();
+  const [immersion, setImmersion] = useImmersion();
   const device = useDevice();
   // Bilan affiché entre deux manches (numéro de la manche terminée).
   const [summary, setSummary] = useState<number | null>(null);
@@ -131,6 +132,9 @@ export function LocalGame({ initial, onExit }: { initial: LocalSave; onExit: () 
                   </Button>
                   <Button variant="ghost" onClick={() => setShape(shape === "curved" ? "flat" : "curved")}>
                     ÉCRAN : {shape === "curved" ? "BOMBÉ" : "PLAT"}
+                  </Button>
+                  <Button variant="ghost" onClick={() => setImmersion(immersion === "new" ? "classic" : "new")}>
+                    IMMERSION : {immersion === "new" ? "NOUVELLE" : "ANCIENNE"}
                   </Button>
                   <Button variant="ghost" onClick={() => setKeyboard(keyboard === "retro" ? "native" : "retro")}>
                     CLAVIER : {keyboard === "retro" ? "RÉTRO" : "TÉLÉPHONE"}

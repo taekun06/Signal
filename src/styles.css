@@ -1182,12 +1182,12 @@ button:disabled {
   overflow: hidden;
 }
 
-.code-toggle.is-open .code-toggle__digits b {
+.code-toggle.is-rich.is-open .code-toggle__digits b {
   animation: beam-draw 0.42s cubic-bezier(0.3, 0.7, 0.4, 1) both;
   animation-delay: calc(var(--i, 0) * 90ms);
 }
 
-.code-toggle.is-open .code-toggle__digits b::after {
+.code-toggle.is-rich.is-open .code-toggle__digits b::after {
   content: "";
   position: absolute;
   left: 0;
@@ -1224,7 +1224,7 @@ button:disabled {
 }
 
 /* Rémanence : le chiffre masqué reste imprimé un instant dans le phosphore. */
-.code-toggle.is-decay .code-toggle__digits b {
+.code-toggle.is-rich.is-decay .code-toggle__digits b {
   color: var(--hi);
   animation: phosphor-decay 1.4s cubic-bezier(0.2, 0.6, 0.4, 1) both;
 }
@@ -1247,11 +1247,11 @@ button:disabled {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .code-toggle.is-open .code-toggle__digits b,
-  .code-toggle.is-open .code-toggle__digits b::after {
+  .code-toggle.is-rich.is-open .code-toggle__digits b,
+  .code-toggle.is-rich.is-open .code-toggle__digits b::after {
     animation: none;
   }
-  .code-toggle.is-open .code-toggle__digits b::after {
+  .code-toggle.is-rich.is-open .code-toggle__digits b::after {
     display: none;
   }
 }
