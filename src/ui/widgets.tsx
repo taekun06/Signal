@@ -1,7 +1,6 @@
-import { useEffect, useRef, useState } from "preact/hooks";
 import { play, vibrate } from "../fx/feedback";
 import { type Code, type GameState, type TeamId, notebook } from "../game/rules";
-import { TypeText, ordinal } from "./kit";
+import { LETTERS, TypeText } from "./kit";
 
 // ---------------------------------------------------------------------------
 // Les quatre mots-clés d’une équipe.
@@ -83,7 +82,7 @@ export function GuessPicker({
     <div class="picker">
       {clues.map((clue, row) => (
         <div class={`picker__row${value[row] ? " is-set" : ""}`} key={row}>
-          <span class="picker__ord">{ordinal(row)}</span>
+          <span class="picker__ord">{LETTERS[row]}</span>
           <span class="picker__clue">{animate ? <TypeText text={clue} delay={250 + row * 650} speed={55} /> : clue}</span>
           <span class="picker__digits" role="group" aria-label={`Position de l’indice ${clue}`}>
             {[1, 2, 3, 4].map((digit) => (
@@ -116,61 +115,5 @@ export function CodeDigits({ code, compare }: { code: (number | null)[]; compare
         </b>
       ))}
     </span>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Code secret visible uniquement tant que le doigt reste appuyé.
-
-export function HoldToReveal({ code, words, onChange }: { code: Code; words: string[]; onChange?: (visible: boolean) => void }) {
-  const [visible, setVisible] = useState(false);
-  const ref = useRef<HTMLButtonElement>(null);
-
-  const set = (next: boolean) => {
-    if (next === visible) return;
-    setVisible(next);
-    onChange?.(next);
-    if (next) {
-      play("select");
-      vibrate(12);
-    }
-  };
-
-  // Sécurité : masquer si l’application passe en arrière-plan.
-  useEffect(() => {
-    const hide = () => document.hidden && set(false);
-    document.addEventListener("visibilitychange", hide);
-    return () => document.removeEventListener("visibilitychange", hide);
-  });
-
-  return (
-    <button
-      ref={ref}
-      type="button"
-      class={`vault${visible ? " is-open" : ""}`}
-      aria-label="Maintenir pour afficher le code secret"
-      onPointerDown={(event) => {
-        event.preventDefault();
-        ref.current?.setPointerCapture?.(event.pointerId);
-        set(true);
-      }}
-      onPointerUp={() => set(false)}
-      onPointerCancel={() => set(false)}
-      onLostPointerCapture={() => set(false)}
-      onKeyDown={(event) => (event.key === " " || event.key === "Enter") && set(true)}
-      onKeyUp={() => set(false)}
-      onBlur={() => set(false)}
-      onContextMenu={(event) => event.preventDefault()}
-    >
-      <span class="vault__cells">
-        {code.map((digit, index) => (
-          <span class="vault__cell" key={index}>
-            <b>{visible ? digit : "?"}</b>
-            <small>{visible ? words[digit - 1] : ordinal(index)}</small>
-          </span>
-        ))}
-      </span>
-      <span class="vault__hint">{visible ? "RELÂCHER POUR MASQUER" : "▼ MAINTENIR POUR VOIR LE CODE ▼"}</span>
-    </button>
   );
 }

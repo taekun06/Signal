@@ -1,4 +1,5 @@
 import { useState } from "preact/hooks";
+import { toggleFullscreen, useDevice } from "../fx/device";
 import { setSoundEnabled, soundEnabled } from "../fx/feedback";
 import { type TeamId, currentRound, pendingTeams } from "../game/rules";
 import { type LocalSave, randomSeed, useLocalGame } from "../net/localGame";
@@ -13,6 +14,7 @@ export function LocalGame({ initial, onExit }: { initial: LocalSave; onExit: () 
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmQuit, setConfirmQuit] = useState(false);
   const [sound, setSound] = useState(soundEnabled());
+  const device = useDevice();
 
   const round = currentRound(state);
   const actor: TeamId | undefined = pendingTeams(state)[0];
@@ -68,6 +70,11 @@ export function LocalGame({ initial, onExit }: { initial: LocalSave; onExit: () 
                   >
                     SON : {sound ? "ACTIVÉ" : "COUPÉ"}
                   </Button>
+                  {device.canFullscreen && (
+                    <Button variant="ghost" onClick={() => void toggleFullscreen()}>
+                      PLEIN ÉCRAN : {device.fullscreen ? "ACTIVÉ" : "DÉSACTIVÉ"}
+                    </Button>
+                  )}
                   <Button variant="ghost" onClick={() => setConfirmQuit(true)}>
                     QUITTER LA PARTIE
                   </Button>
