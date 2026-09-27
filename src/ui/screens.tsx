@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { PHOSPHOR, runOscilloscope } from "../fx/canvasFx";
-import { play, scramble, vibrate } from "../fx/feedback";
+import { useKeyboardKind } from "../fx/display";
+import { morse, play, scramble, vibrate } from "../fx/feedback";
 import {
   type Action,
   type GameState,
@@ -14,6 +15,7 @@ import {
   sameCode,
 } from "../game/rules";
 import { PixelIcon } from "./icons";
+import { type KeyboardInput, RetroKeyboard } from "./keyboard";
 import { Button, Countdown, LETTERS, Panel, TeamTag, TypeText, reducedMotion, teamMark } from "./kit";
 import { CodeDigits, GuessPicker, KeywordGrid, MechanicalCode, Notebook } from "./widgets";
 
@@ -120,13 +122,48 @@ export function CluesScreen({ state, team, dispatch, toast }: ScreenProps) {
   const words = state.teams[team].words;
   const [clues, setClues] = useState(["", "", ""]);
   const [visible, setVisible] = useState(false);
+  const [active, setActiveState] = useState(0);
+  const activeRef = useRef(0);
+  const setActive = (index: number) => {
+    activeRef.current = index;
+    setActiveState(index);
+  };
+  const [keyboard, setKeyboard] = useKeyboardKind();
+  const retro = keyboard === "retro";
   const cluesRef = useRef(clues);
   cluesRef.current = clues;
 
   const send = () => {
-    if (attempt(() => dispatch({ type: "submitClues", team, clues, now: Date.now() }), toast)) {
-      play("send");
-      vibrate([20, 30, 60]);
+    const current = cluesRef.current;
+    if (attempt(() => dispatch({ type: "submitClues", team, clues: current, now: Date.now() }), toast)) {
+      // Le message part en morse : une lettre par indice (leurs initiales).
+      morse(current.map((clue) => clue.trim()[0] ?? "").join(""));
+    }
+  };
+
+  // Avec le clavier rétro, la ligne en cours reste visible au-dessus du clavier.
+  useEffect(() => {
+    if (!retro || !visible) return;
+    document.querySelector(".clue-row.is-active")?.scrollIntoView({ block: "center", behavior: reducedMotion() ? "auto" : "smooth" });
+  }, [active, visible, retro]);
+
+  const onKey = (input: KeyboardInput) => {
+    // Refs : plusieurs touches peuvent arriver avant le rendu suivant.
+    const active = activeRef.current;
+    const next = [...cluesRef.current];
+    if (input.type === "char") {
+      if (next[active].length >= MAX_CLUE_LENGTH || (input.char === " " && !next[active])) return;
+      next[active] += input.char;
+      cluesRef.current = next;
+      setClues(next);
+    } else if (input.type === "backspace") {
+      next[active] = next[active].slice(0, -1);
+      cluesRef.current = next;
+      setClues(next);
+    } else if (active < 2) {
+      setActive(active + 1);
+    } else if (next.every((clue) => clue.trim())) {
+      send();
     }
   };
 
@@ -163,7 +200,7 @@ export function CluesScreen({ state, team, dispatch, toast }: ScreenProps) {
           &gt; CRYPTEUR : <TypeText text={transmission.encryptor.toUpperCase()} speed={60} cursor />
         </p>
         <KeywordGrid words={words} highlight={visible ? transmission.code : []} />
-        <p class="hint">
+        <p class="hint clues-hint">
           Fais deviner chaque mot à ton équipe avec un seul indice. Pas de mot-clé, pas d’indice déjà donné.
         </p>
       </div>
@@ -186,43 +223,56 @@ export function CluesScreen({ state, team, dispatch, toast }: ScreenProps) {
           <div class="clue-rows">
             {clues.map((clue, index) => {
               const digit = transmission.code[index];
+              const label = visible ? `Ton indice pour ${words[digit - 1]}` : `Indice ${LETTERS[index]}`;
               return (
-                <label class={`clue-row${visible ? " is-open" : ""}`} key={index}>
+                <div class={`clue-row${visible ? " is-open" : ""}${retro && active === index ? " is-active" : ""}`} key={index}>
                   <span class="clue-row__target" aria-hidden={!visible}>
                     <b>{visible ? digit : "?"}</b>
                     <span>{visible ? words[digit - 1] : "••••"}</span>
                   </span>
                   <span class="clue-row__field">
-                    <small>{visible ? `Ton indice pour ${words[digit - 1]}` : `Indice ${LETTERS[index]}`}</small>
-                    <input
-                      id={`clue-${index}`}
-                      value={clue}
-                      maxLength={MAX_CLUE_LENGTH}
-                      autocomplete="off"
-                      autoCapitalize="characters"
-                      spellcheck={false}
-                      enterKeyHint={index < 2 ? "next" : "send"}
-                      placeholder="…"
-                      onInput={(event) => {
-                        play("key");
-                        const next = [...clues];
-                        next[index] = (event.currentTarget as HTMLInputElement).value;
-                        setClues(next);
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key !== "Enter") return;
-                        event.preventDefault();
-                        const nextInput = document.getElementById(`clue-${index + 1}`);
-                        if (nextInput) nextInput.focus();
-                        else if (filled) send();
-                      }}
-                    />
+                    <small>{label}</small>
+                    {retro ? (
+                      <button type="button" class="clue-row__screen" aria-label={`${label} : ${clue || "vide"}`} onClick={() => setActive(index)}>
+                        {clue}
+                        {active === index && <span class="cursor">▌</span>}
+                      </button>
+                    ) : (
+                      <input
+                        id={`clue-${index}`}
+                        value={clue}
+                        maxLength={MAX_CLUE_LENGTH}
+                        autocomplete="off"
+                        autoCapitalize="characters"
+                        spellcheck={false}
+                        enterKeyHint={index < 2 ? "next" : "send"}
+                        placeholder="…"
+                        aria-label={label}
+                        onInput={(event) => {
+                          play("key");
+                          const next = [...clues];
+                          next[index] = (event.currentTarget as HTMLInputElement).value;
+                          setClues(next);
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key !== "Enter") return;
+                          event.preventDefault();
+                          const nextInput = document.getElementById(`clue-${index + 1}`);
+                          if (nextInput) nextInput.focus();
+                          else if (filled) send();
+                        }}
+                      />
+                    )}
                   </span>
-                </label>
+                </div>
               );
             })}
           </div>
         </Panel>
+        {retro && <RetroKeyboard onInput={onKey} nextLabel={active < 2 ? "SUIVANT ↵" : "OK ↵"} />}
+        <button type="button" class="linkish" onClick={() => setKeyboard(retro ? "native" : "retro")}>
+          {retro ? "⌨ utiliser le clavier du téléphone" : "⌨ utiliser le clavier rétro"}
+        </button>
         <Button onClick={send} disabled={!filled} sound={null} class="btn--big">
           TRANSMETTRE ▶
         </Button>
@@ -335,7 +385,7 @@ export function RevealScreen({ state, onContinue, continueLabel }: { state: Game
       at(4700, () => {
         setStage(3);
         play("drop");
-        vibrate([20, 30, 90]);
+        vibrate(35);
       });
     } else {
       at(2700, () => {

@@ -51,3 +51,39 @@ export const supportsWarp = (() => {
   const webkitOnly = /AppleWebKit/.test(ua) && !/Chrome|Chromium|Edg|Android/.test(ua);
   return !webkitOnly;
 })();
+
+// ---------------------------------------------------------------------------
+// Clavier des indices : clavier de terminal intégré, ou clavier du téléphone.
+
+export type KeyboardKind = "retro" | "native";
+
+const KEYBOARD_KEY = "signal-zero:keyboard";
+const keyboardListeners = new Set<(kind: KeyboardKind) => void>();
+
+let keyboard: KeyboardKind = (() => {
+  try {
+    return localStorage.getItem(KEYBOARD_KEY) === "native" ? "native" : "retro";
+  } catch {
+    return "retro";
+  }
+})();
+
+export function useKeyboardKind(): [KeyboardKind, (kind: KeyboardKind) => void] {
+  const [kind, setKind] = useState(keyboard);
+  useEffect(() => {
+    keyboardListeners.add(setKind);
+    return () => {
+      keyboardListeners.delete(setKind);
+    };
+  }, []);
+  const update = (next: KeyboardKind) => {
+    keyboard = next;
+    try {
+      localStorage.setItem(KEYBOARD_KEY, next);
+    } catch {
+      /* Réglage conservé pour la session. */
+    }
+    keyboardListeners.forEach((listener) => listener(next));
+  };
+  return [kind, update];
+}
