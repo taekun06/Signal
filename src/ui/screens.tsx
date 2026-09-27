@@ -1,7 +1,7 @@
 import type { ComponentChildren } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { PHOSPHOR, runOscilloscope } from "../fx/canvasFx";
-import { useKeyboardKind } from "../fx/display";
+import { useImmersion, useKeyboardKind } from "../fx/display";
 import { morse, play, scramble, vibrate } from "../fx/feedback";
 import {
   type Action,
@@ -9,6 +9,7 @@ import {
   type TeamId,
   MAX_CLUE_LENGTH,
   RuleError,
+  applyAction,
   currentRound,
   encryptorFor,
   interceptionAllowed,
@@ -151,13 +152,27 @@ export function CluesScreen({ state, team, dispatch, toast }: ScreenProps) {
   const cluesRef = useRef(clues);
   cluesRef.current = clues;
 
+  // Transmettre ouvre la liaison : on vérifie d’abord les indices (sans rien
+  // envoyer), puis le crypteur maintient l’émission jusqu’au bout.
+  const [transmitting, setTransmitting] = useState(false);
+  const [immersion] = useImmersion();
+  const rich = immersion === "new";
   const send = () => {
     const current = cluesRef.current;
-    if (attempt(() => dispatch({ type: "submitClues", team, clues: current, now: Date.now() }), toast)) {
-      // Le message part en morse : une lettre par indice (leurs initiales).
-      morse(current.map((clue) => clue.trim()[0] ?? "").join(""));
+    if (!rich) {
+      // Écran d’avant : envoi direct, le message part en morse (initiales des indices).
+      if (attempt(() => dispatch({ type: "submitClues", team, clues: current, now: Date.now() }), toast)) {
+        morse(current.map((clue) => clue.trim()[0] ?? "").join(""));
+      }
+      return;
+    }
+    if (attempt(() => applyAction(state, { type: "submitClues", team, clues: current, now: Date.now() }), toast)) {
+      hide(false);
+      play("select");
+      setTransmitting(true);
     }
   };
+  const transmit = () => attempt(() => dispatch({ type: "submitClues", team, clues: cluesRef.current, now: Date.now() }), toast);
 
   // Sur les petits écrans, la ligne en cours reste visible au-dessus du clavier.
   useEffect(() => {
@@ -187,17 +202,66 @@ export function CluesScreen({ state, team, dispatch, toast }: ScreenProps) {
     }
   };
 
-  const toggle = () => {
-    play(visible ? "key" : "select");
-    vibrate(12);
-    setVisible(!visible);
+  // Le code est tracé par le faisceau, puis s’efface avec la rémanence du
+  // phosphore : on le voit encore une seconde après l’avoir masqué.
+  const [decay, setDecay] = useState(false);
+  const decayTimer = useRef(0);
+  const show = () => {
+    clearTimeout(decayTimer.current);
+    setDecay(false);
+    play(rich ? "beam" : "select");
+    vibrate(rich ? 15 : 12);
+    setVisible(true);
+  };
+  const hide = (fade = true) => {
+    setVisible(false);
+    clearTimeout(decayTimer.current);
+    if (!fade || !rich || reducedMotion()) {
+      setDecay(false);
+      if (fade) play("key");
+      return;
+    }
+    play("fade");
+    setDecay(true);
+    decayTimer.current = window.setTimeout(() => setDecay(false), 1400);
+  };
+  const toggle = () => (visible ? hide() : show());
+
+  // Appui long : le code n’existe que sous le pouce. Appui bref : bascule.
+  const peekTimer = useRef(0);
+  const peeking = useRef(false);
+  const onCodeDown = (event: PointerEvent) => {
+    (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
+    clearTimeout(peekTimer.current);
+    peekTimer.current = window.setTimeout(() => {
+      peeking.current = true;
+      if (!visible) show();
+    }, 280);
+  };
+  const onCodeUp = () => {
+    clearTimeout(peekTimer.current);
+    if (peeking.current) {
+      peeking.current = false;
+      hide();
+    } else toggle();
+  };
+  const onCodeCancel = () => {
+    clearTimeout(peekTimer.current);
+    if (peeking.current) {
+      peeking.current = false;
+      hide();
+    }
   };
 
-  // Sécurité : le code se masque si l’application passe en arrière-plan.
+  // Sécurité : le code disparaît aussitôt si l’application passe en arrière-plan.
   useEffect(() => {
-    const hide = () => document.hidden && setVisible(false);
-    document.addEventListener("visibilitychange", hide);
-    return () => document.removeEventListener("visibilitychange", hide);
+    const onHidden = () => document.hidden && hide(false);
+    document.addEventListener("visibilitychange", onHidden);
+    return () => {
+      document.removeEventListener("visibilitychange", onHidden);
+      clearTimeout(decayTimer.current);
+      clearTimeout(peekTimer.current);
+    };
   }, []);
 
   // Sablier écoulé : les indices en cours partent tels quels.
@@ -212,6 +276,20 @@ export function CluesScreen({ state, team, dispatch, toast }: ScreenProps) {
   }, [state.clueDeadline]);
 
   const filled = clues.every((clue) => clue.trim());
+
+  if (transmitting) {
+    return (
+      <TransmitView
+        state={state}
+        team={team}
+        clues={clues}
+        onDone={() => {
+          if (!transmit()) setTransmitting(false);
+        }}
+        onBack={() => setTransmitting(false)}
+      />
+    );
+  }
 
   return (
     <div class={`screen clues${retro ? " clues--retro" : ""}${visible ? " is-open" : ""}`}>
@@ -230,14 +308,28 @@ export function CluesScreen({ state, team, dispatch, toast }: ScreenProps) {
           Fais deviner chaque mot à ton équipe avec un seul indice. Pas de mot-clé, pas d’indice déjà donné.
         </p>
       </div>
-      <button type="button" class={`code-toggle clues__code${visible ? " is-open" : ""}`} onClick={toggle} aria-pressed={visible}>
+      <button
+        type="button"
+        class={`code-toggle clues__code${rich ? " is-rich" : ""}${visible ? " is-open" : ""}${decay ? " is-decay" : ""}`}
+        onPointerDown={rich ? onCodeDown : undefined}
+        onPointerUp={rich ? onCodeUp : undefined}
+        onPointerCancel={rich ? onCodeCancel : undefined}
+        onContextMenu={(event) => rich && event.preventDefault()}
+        onClick={(event) => {
+          // Clavier et lecteurs d’écran : pas d’événement de pointeur.
+          if (!rich || event.detail === 0) toggle();
+        }}
+        aria-pressed={visible}
+      >
         <span class="code-toggle__name">CODE SECRET</span>
         <span class="code-toggle__digits">
           {transmission.code.map((digit, index) => (
-            <b key={index}>{visible ? digit : "?"}</b>
+            <b key={index} style={{ "--i": index }}>
+              {visible || decay ? digit : "?"}
+            </b>
           ))}
         </span>
-        <span class="code-toggle__label">{visible ? "◉ MASQUER" : "◎ TOUCHER POUR AFFICHER"}</span>
+        <span class="code-toggle__label">{visible ? "◉ MASQUER" : rich ? "◎ MAINTENIR POUR VOIR" : "◎ TOUCHER POUR AFFICHER"}</span>
       </button>
       <div class="clue-rows clues__rows">
         {clues.map((clue, index) => {
@@ -300,6 +392,141 @@ export function CluesScreen({ state, team, dispatch, toast }: ScreenProps) {
           </Button>
         )}
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Émission : le crypteur maintient la liaison, ses indices partent en données.
+
+const HOLD_MS = 2600;
+const hexOf = (text: string) => [...new TextEncoder().encode(text)].map((b) => b.toString(16).padStart(2, "0").toUpperCase());
+
+function TransmitView({
+  state,
+  team,
+  clues,
+  onDone,
+  onBack,
+}: {
+  state: GameState;
+  team: TeamId;
+  clues: string[];
+  onDone: () => void;
+  onBack: () => void;
+}) {
+  const words = clues.map((clue) => clue.trim().toUpperCase());
+  const [progress, setProgress] = useState(0);
+  const [lost, setLost] = useState(false);
+  const [dump, setDump] = useState<string[]>([]);
+  const holding = useRef(false);
+  const raf = useRef(0);
+  const doneRef = useRef(false);
+
+  const stop = () => {
+    cancelAnimationFrame(raf.current);
+    holding.current = false;
+  };
+  useEffect(() => stop, []);
+
+  const start = (event: PointerEvent | KeyboardEvent) => {
+    if (holding.current || doneRef.current) return;
+    event.preventDefault();
+    if ("pointerId" in event) (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
+    holding.current = true;
+    setLost(false);
+    play("modem");
+    vibrate(25);
+    const t0 = performance.now();
+    let row = 0;
+    const step = (now: number) => {
+      if (!holding.current) return;
+      const p = Math.min(1, (now - t0) / (reducedMotion() ? 600 : HOLD_MS));
+      setProgress(p);
+      // Trame de données qui défile : adresse puis huit octets.
+      row += 1;
+      if (row % 3 === 0) {
+        const line = `${(row * 8).toString(16).padStart(4, "0").toUpperCase()}  ${Array.from({ length: 8 }, () =>
+          Math.floor(Math.random() * 256)
+            .toString(16)
+            .padStart(2, "0")
+            .toUpperCase(),
+        ).join(" ")}`;
+        setDump((lines) => [...lines.slice(-7), line]);
+        play("tick");
+      }
+      if (p >= 1) {
+        holding.current = false;
+        doneRef.current = true;
+        play("send");
+        vibrate([30, 50, 30, 50, 160]);
+        window.setTimeout(onDone, reducedMotion() ? 0 : 450);
+        return;
+      }
+      raf.current = requestAnimationFrame(step);
+    };
+    raf.current = requestAnimationFrame(step);
+  };
+
+  const release = () => {
+    if (!holding.current) return;
+    stop();
+    if (doneRef.current) return;
+    // Lâché trop tôt : la porteuse est perdue, tout est à refaire.
+    play("cut");
+    vibrate([60, 40, 60]);
+    setProgress(0);
+    setLost(true);
+    setDump([]);
+  };
+
+  // Chaque indice se change en octets, lettre après lettre, l’un après l’autre.
+  const encoded = words.map((word, index) => {
+    const local = Math.max(0, Math.min(1, progress * 3.2 - index * 1.05));
+    const n = Math.floor(local * word.length);
+    return { plain: word.slice(n), bytes: hexOf(word.slice(0, n)).join("") };
+  });
+
+  return (
+    <div class="screen transmit">
+      <p class="prompt">
+        &gt; ÉMISSION · {teamMark(team)} {teamName(state, team)}
+      </p>
+      <div class="transmit__clues">
+        {encoded.map((line, index) => (
+          <div class="transmit__clue" key={index}>
+            <i>{LETTERS[index]}</i>
+            <span>
+              {line.bytes && <b>{line.bytes}</b>}
+              {line.plain}
+            </span>
+          </div>
+        ))}
+      </div>
+      <pre class={`transmit__dump${lost ? " is-lost" : ""}`} aria-hidden="true">
+        {lost
+          ? "!! PORTEUSE PERDUE\n!! transmission interrompue\n\n> maintiens jusqu’au bout"
+          : dump.length
+            ? dump.join("\n")
+            : `-- EN ATTENTE DE PORTEUSE --\n\nPAQUETS  3\nOCTETS   ${words.reduce((n, w) => n + hexOf(w).length, 0)}`}
+      </pre>
+      <button
+        type="button"
+        class={`btn btn--primary btn--big hold-btn${progress > 0 ? " is-holding" : ""}`}
+        style={{ "--p": progress }}
+        onPointerDown={start}
+        onPointerUp={release}
+        onPointerCancel={release}
+        onContextMenu={(event) => event.preventDefault()}
+        onKeyDown={(event) => (event.key === " " || event.key === "Enter") && !event.repeat && start(event)}
+        onKeyUp={release}
+      >
+        <span class="hold-btn__fill" aria-hidden="true" />
+        <span class="hold-btn__label">{progress >= 1 ? "TRANSMIS ✓" : progress > 0 ? `ÉMISSION ${Math.round(progress * 100)} %` : "MAINTENIR POUR ÉMETTRE"}</span>
+      </button>
+      <button type="button" class="linkish transmit__back" onClick={onBack} disabled={progress > 0}>
+        ◀ corriger les indices
+      </button>
     </div>
   );
 }
