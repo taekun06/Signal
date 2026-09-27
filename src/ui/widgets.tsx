@@ -12,7 +12,7 @@ export function KeywordGrid({ words, highlight = [] }: { words: string[]; highli
       {words.map((word, index) => (
         <li key={word} class={highlight.includes(index + 1) ? "is-lit" : ""}>
           <span class="keywords__num">{index + 1}</span>
-          <span class="keywords__word">{word}</span>
+          <span class={`keywords__word${word.length > 10 ? " is-long" : ""}`}>{word}</span>
         </li>
       ))}
     </ol>

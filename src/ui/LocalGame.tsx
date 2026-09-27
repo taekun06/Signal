@@ -1,6 +1,6 @@
 import { useState } from "preact/hooks";
 import { toggleFullscreen, useDevice } from "../fx/device";
-import { useScreenShape } from "../fx/display";
+import { useKeyboardKind, useScreenShape } from "../fx/display";
 import { setSoundEnabled, soundEnabled } from "../fx/feedback";
 import { type TeamId, currentRound, endOfRoundResult, pendingTeams } from "../game/rules";
 import { type LocalSave, randomSeed, useLocalGame } from "../net/localGame";
@@ -16,6 +16,7 @@ export function LocalGame({ initial, onExit }: { initial: LocalSave; onExit: () 
   const [confirmQuit, setConfirmQuit] = useState(false);
   const [sound, setSound] = useState(soundEnabled());
   const [shape, setShape] = useScreenShape();
+  const [keyboard, setKeyboard] = useKeyboardKind();
   const device = useDevice();
   // Bilan affiché entre deux manches (numéro de la manche terminée).
   const [summary, setSummary] = useState<number | null>(null);
@@ -35,6 +36,10 @@ export function LocalGame({ initial, onExit }: { initial: LocalSave; onExit: () 
   const endsGame = state.phase === "reveal" && state.active === "B" && endOfRoundResult(state) !== null;
   const revealLabel =
     state.active === "A" ? `SIGNAL SUIVANT : ${teamMark("B")} ${state.teams.B.name.toUpperCase()} ▶` : endsGame ? "RÉSULTAT FINAL ▶" : "BILAN DE LA MANCHE ▶";
+
+  // Écrans calés sur la hauteur du tube (sans défilement) : saisie des indices
+  // avec le clavier en bas, et passage du téléphone en plein écran.
+  const fit = !showSummary && (handoff || (actor !== undefined && state.phase === "clues"));
 
   let content;
   if (showSummary) {
@@ -71,7 +76,7 @@ export function LocalGame({ initial, onExit }: { initial: LocalSave; onExit: () 
 
   return (
     <Crt tint={tint}>
-      <div class="app-frame">
+      <div class={`app-frame app-frame--game${fit ? " is-fit" : ""}`}>
         <div class="hud-row">
           <HeaderBar state={state} label={state.phase === "tiebreak" ? "DÉPARTAGE" : undefined} focus={actor} />
           <button type="button" class="menu-btn" aria-label="Menu" onClick={() => setMenuOpen(true)}>
@@ -101,6 +106,9 @@ export function LocalGame({ initial, onExit }: { initial: LocalSave; onExit: () 
                   </Button>
                   <Button variant="ghost" onClick={() => setShape(shape === "curved" ? "flat" : "curved")}>
                     ÉCRAN : {shape === "curved" ? "BOMBÉ" : "PLAT"}
+                  </Button>
+                  <Button variant="ghost" onClick={() => setKeyboard(keyboard === "retro" ? "native" : "retro")}>
+                    CLAVIER : {keyboard === "retro" ? "RÉTRO" : "TÉLÉPHONE"}
                   </Button>
                   {device.canFullscreen && (
                     <Button variant="ghost" onClick={() => void toggleFullscreen()}>

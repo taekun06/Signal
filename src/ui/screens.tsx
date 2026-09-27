@@ -55,10 +55,27 @@ export function HandoffScreen({ state, team, onReady }: { state: GameState; team
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
-    canvas.width = Math.max(1, Math.round(canvas.offsetWidth * dpr));
-    canvas.height = Math.max(1, Math.round(canvas.offsetHeight * dpr));
-    return runOscilloscope(canvas, PHOSPHOR[team], 0.3);
+    let stop = () => {};
+    const start = () => {
+      stop();
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      canvas.width = Math.max(1, Math.round(canvas.offsetWidth * dpr));
+      canvas.height = Math.max(1, Math.round(canvas.offsetHeight * dpr));
+      stop = runOscilloscope(canvas, PHOSPHOR[team], 0.3);
+    };
+    start();
+    // Téléphone tourné : la trace repart aux nouvelles proportions.
+    let timer = 0;
+    const onResize = () => {
+      clearTimeout(timer);
+      timer = window.setTimeout(start, 150);
+    };
+    window.addEventListener("resize", onResize);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("resize", onResize);
+      stop();
+    };
   }, [team]);
 
   let caption = "DONNE LE TÉLÉPHONE À L’ÉQUIPE";
@@ -141,10 +158,10 @@ export function CluesScreen({ state, team, dispatch, toast }: ScreenProps) {
     }
   };
 
-  // Avec le clavier rétro, la ligne en cours reste visible au-dessus du clavier.
+  // Sur les petits écrans, la ligne en cours reste visible au-dessus du clavier.
   useEffect(() => {
-    if (!retro || !visible) return;
-    document.querySelector(".clue-row.is-active")?.scrollIntoView({ block: "center", behavior: reducedMotion() ? "auto" : "smooth" });
+    if (!retro) return;
+    document.querySelector(".clue-row.is-active")?.scrollIntoView({ block: "nearest", behavior: reducedMotion() ? "auto" : "smooth" });
   }, [active, visible, retro]);
 
   const onKey = (input: KeyboardInput) => {
@@ -164,6 +181,8 @@ export function CluesScreen({ state, team, dispatch, toast }: ScreenProps) {
       setActive(active + 1);
     } else if (next.every((clue) => clue.trim())) {
       send();
+    } else {
+      setActive(next.findIndex((clue) => !clue.trim()));
     }
   };
 
@@ -194,88 +213,91 @@ export function CluesScreen({ state, team, dispatch, toast }: ScreenProps) {
   const filled = clues.every((clue) => clue.trim());
 
   return (
-    <div class="screen screen--split">
-      <div class="screen__side">
-        <p class="prompt">
-          &gt; CRYPTEUR : <TypeText text={transmission.encryptor.toUpperCase()} speed={60} cursor />
-        </p>
+    <div class={`screen clues${retro ? " clues--retro" : ""}${visible ? " is-open" : ""}`}>
+      <div class="clues__head">
+        <div class="clues__title">
+          <p class="prompt">
+            &gt; CRYPTEUR : <TypeText text={transmission.encryptor.toUpperCase()} speed={60} cursor />
+          </p>
+          <Countdown deadline={state.clueDeadline} />
+          <button type="button" class="linkish clues__kb-switch" onClick={() => setKeyboard(retro ? "native" : "retro")}>
+            {retro ? "⌨ clavier du téléphone" : "⌨ clavier rétro"}
+          </button>
+        </div>
         <KeywordGrid words={words} highlight={visible ? transmission.code : []} />
         <p class="hint clues-hint">
           Fais deviner chaque mot à ton équipe avec un seul indice. Pas de mot-clé, pas d’indice déjà donné.
         </p>
       </div>
-      <div class="screen__main">
-        <Panel
-          title={
-            <>
-              TON CODE SECRET <Countdown deadline={state.clueDeadline} />
-            </>
-          }
-        >
-          <button type="button" class={`code-toggle${visible ? " is-open" : ""}`} onClick={toggle} aria-pressed={visible}>
-            <span class="code-toggle__digits">
-              {transmission.code.map((digit, index) => (
-                <b key={index}>{visible ? digit : "?"}</b>
-              ))}
-            </span>
-            <span class="code-toggle__label">{visible ? "◉ MASQUER" : "◎ TOUCHER POUR AFFICHER"}</span>
-          </button>
-          <div class="clue-rows">
-            {clues.map((clue, index) => {
-              const digit = transmission.code[index];
-              const label = visible ? `Ton indice pour ${words[digit - 1]}` : `Indice ${LETTERS[index]}`;
-              return (
-                <div class={`clue-row${visible ? " is-open" : ""}${retro && active === index ? " is-active" : ""}`} key={index}>
-                  <span class="clue-row__target" aria-hidden={!visible}>
-                    <b>{visible ? digit : "?"}</b>
-                    <span>{visible ? words[digit - 1] : "••••"}</span>
-                  </span>
-                  <span class="clue-row__field">
-                    <small>{label}</small>
-                    {retro ? (
-                      <button type="button" class="clue-row__screen" aria-label={`${label} : ${clue || "vide"}`} onClick={() => setActive(index)}>
-                        {clue}
-                        {active === index && <span class="cursor">▌</span>}
-                      </button>
-                    ) : (
-                      <input
-                        id={`clue-${index}`}
-                        value={clue}
-                        maxLength={MAX_CLUE_LENGTH}
-                        autocomplete="off"
-                        autoCapitalize="characters"
-                        spellcheck={false}
-                        enterKeyHint={index < 2 ? "next" : "send"}
-                        placeholder="…"
-                        aria-label={label}
-                        onInput={(event) => {
-                          play("key");
-                          const next = [...clues];
-                          next[index] = (event.currentTarget as HTMLInputElement).value;
-                          setClues(next);
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key !== "Enter") return;
-                          event.preventDefault();
-                          const nextInput = document.getElementById(`clue-${index + 1}`);
-                          if (nextInput) nextInput.focus();
-                          else if (filled) send();
-                        }}
-                      />
-                    )}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </Panel>
-        {retro && <RetroKeyboard onInput={onKey} nextLabel={active < 2 ? "SUIVANT ↵" : "OK ↵"} />}
-        <button type="button" class="linkish" onClick={() => setKeyboard(retro ? "native" : "retro")}>
-          {retro ? "⌨ utiliser le clavier du téléphone" : "⌨ utiliser le clavier rétro"}
-        </button>
-        <Button onClick={send} disabled={!filled} sound={null} class="btn--big">
-          TRANSMETTRE ▶
-        </Button>
+      <button type="button" class={`code-toggle clues__code${visible ? " is-open" : ""}`} onClick={toggle} aria-pressed={visible}>
+        <span class="code-toggle__name">CODE SECRET</span>
+        <span class="code-toggle__digits">
+          {transmission.code.map((digit, index) => (
+            <b key={index}>{visible ? digit : "?"}</b>
+          ))}
+        </span>
+        <span class="code-toggle__label">{visible ? "◉ MASQUER" : "◎ TOUCHER POUR AFFICHER"}</span>
+      </button>
+      <div class="clue-rows clues__rows">
+        {clues.map((clue, index) => {
+          const digit = transmission.code[index];
+          const label = visible ? `Ton indice pour ${words[digit - 1]}` : `Indice ${LETTERS[index]}`;
+          return (
+            <div class={`clue-row${visible ? " is-open" : ""}${retro && active === index ? " is-active" : ""}`} key={index}>
+              <span class="clue-row__target" aria-hidden={!visible}>
+                <b>{visible ? digit : "?"}</b>
+                <span class={visible && words[digit - 1].length > 9 ? "is-long" : undefined}>{visible ? words[digit - 1] : "••••"}</span>
+              </span>
+              <span class="clue-row__field">
+                <small>{label}</small>
+                {retro ? (
+                  <button type="button" class="clue-row__screen" aria-label={`${label} : ${clue || "vide"}`} onClick={() => setActive(index)}>
+                    {clue}
+                    {active === index && <span class="cursor">▌</span>}
+                  </button>
+                ) : (
+                  <input
+                    id={`clue-${index}`}
+                    value={clue}
+                    maxLength={MAX_CLUE_LENGTH}
+                    autocomplete="off"
+                    autoCapitalize="characters"
+                    spellcheck={false}
+                    enterKeyHint={index < 2 ? "next" : "send"}
+                    placeholder="…"
+                    aria-label={label}
+                    onInput={(event) => {
+                      play("key");
+                      const next = [...clues];
+                      next[index] = (event.currentTarget as HTMLInputElement).value;
+                      setClues(next);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter") return;
+                      event.preventDefault();
+                      const nextInput = document.getElementById(`clue-${index + 1}`);
+                      if (nextInput) nextInput.focus();
+                      else if (filled) send();
+                    }}
+                  />
+                )}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <div class="clues__send">
+        {retro ? (
+          <RetroKeyboard
+            onInput={onKey}
+            action={active < 2 ? "SUIVANT ↵" : "TRANSMETTRE ▶"}
+            actionReady={active < 2 || filled}
+          />
+        ) : (
+          <Button onClick={send} disabled={!filled} sound={null} class="btn--big">
+            TRANSMETTRE ▶
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -335,7 +357,7 @@ export function DecodeScreen({ state, team, dispatch, toast }: ScreenProps) {
       </div>
       <div class="screen__main">
         <Panel title={`SIGNAL ${teamName(state, active)} · MANCHE ${round.number}`}>
-          <p class="hint">Pour chaque indice, choisissez la position du mot-clé qu’il désigne.</p>
+          <p class="hint picker-hint">Pour chaque indice, choisissez la position du mot-clé qu’il désigne.</p>
           <GuessPicker clues={transmission.clues ?? []} value={guess} onChange={setGuess} />
         </Panel>
         <div class="lock-row">

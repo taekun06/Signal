@@ -2,7 +2,7 @@
 // Les pages passent d’abord par le réseau (pour recevoir les mises à jour),
 // les fichiers versionnés (JS, CSS, polices, images) sont servis depuis le cache.
 
-const CACHE = "signal-zero-v2";
+const CACHE = "signal-zero-v3";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(["./", "./manifest.webmanifest", "./icon-192.png"])));
