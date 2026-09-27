@@ -11,7 +11,16 @@ const ROWS = [
 
 export type KeyboardInput = { type: "char"; char: string } | { type: "backspace" } | { type: "next" };
 
-export function RetroKeyboard({ onInput, nextLabel = "SUIVANT ↵" }: { onInput: (input: KeyboardInput) => void; nextLabel?: string }) {
+export function RetroKeyboard({
+  onInput,
+  action = "SUIVANT ↵",
+  actionReady = true,
+}: {
+  onInput: (input: KeyboardInput) => void;
+  /** Touche d’action : passer à l’indice suivant, ou transmettre. */
+  action?: string;
+  actionReady?: boolean;
+}) {
   const press = (input: KeyboardInput) => {
     play("key");
     vibrate(6);
@@ -76,13 +85,13 @@ export function RetroKeyboard({ onInput, nextLabel = "SUIVANT ↵" }: { onInput:
         </button>
         <button
           type="button"
-          class="retro-kb__key retro-kb__key--fn"
+          class={`retro-kb__key retro-kb__key--fn retro-kb__key--action${actionReady ? "" : " is-waiting"}`}
           onPointerDown={(event) => {
             event.preventDefault();
             press({ type: "next" });
           }}
         >
-          {nextLabel}
+          {action}
         </button>
       </div>
     </div>

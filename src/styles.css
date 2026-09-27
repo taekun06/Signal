@@ -104,6 +104,8 @@ button:disabled {
 .crt__content {
   position: absolute;
   inset: 0;
+  display: flex;
+  flex-direction: column;
   overflow-x: hidden;
   overflow-y: auto;
   padding: calc(env(safe-area-inset-top, 0px) + 16px) calc(env(safe-area-inset-right, 0px) + 18px)
@@ -492,13 +494,32 @@ button:disabled {
 /* ------------------------------------------------------------------------ */
 /* Structure                                                                  */
 
+/* Le cadre remplit toute la hauteur du tube ; un écran trop long défile. */
 .app-frame {
-  min-height: 100%;
+  flex: 1 0 auto;
+  width: 100%;
   max-width: 1080px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
+}
+
+/* Écrans calés sur la hauteur exacte du tube : rien ne dépasse, seules
+   certaines zones internes défilent si le téléphone est vraiment petit. */
+.app-frame.is-fit {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.app-frame.is-fit .power,
+.app-frame.is-fit .power__content,
+.app-frame.is-fit .screen {
+  min-height: 0;
+}
+
+.app-frame.is-fit .handoff {
+  min-height: 0;
 }
 
 .screen {
@@ -506,6 +527,17 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+/* En portrait, le bouton principal se cale en bas de l’écran. */
+.screen--split > .screen__main {
+  flex: 1;
+}
+
+.screen__main > .btn--big:last-child,
+.screen__main > .lock-row:last-child,
+.screen__main > .actions:last-child {
+  margin-top: auto;
 }
 
 .screen__side,
@@ -536,7 +568,7 @@ button:disabled {
   .screen--split {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
-    align-items: start;
+    align-items: stretch;
     gap: 18px 22px;
   }
 }
@@ -707,25 +739,6 @@ button:disabled {
   font: 400 28px/1 var(--display);
 }
 
-@media (orientation: landscape) and (max-height: 560px) {
-  .hud {
-    grid-template-columns: auto 1fr;
-    align-items: center;
-    gap: 14px;
-  }
-  .hud__top {
-    flex-direction: column;
-    gap: 2px;
-    font-size: 15px;
-  }
-  .hud__name {
-    font-size: 15px;
-  }
-  .crt__content {
-    padding-top: calc(env(safe-area-inset-top, 0px) + 10px);
-  }
-}
-
 .hud__team {
   display: grid;
   gap: 2px;
@@ -760,6 +773,17 @@ button:disabled {
 
 .hud__stat .tokens {
   margin-left: auto;
+}
+
+@media (max-width: 380px) {
+  .hud__team {
+    padding-inline: 6px;
+  }
+  .hud__stat {
+    gap: 3px;
+    font-size: 8px;
+    letter-spacing: 0.02em;
+  }
 }
 
 /* ------------------------------------------------------------------------ */
@@ -903,9 +927,11 @@ button:disabled {
 .keywords li {
   position: relative;
   display: grid;
-  gap: 4px;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
   min-width: 0;
-  padding: 8px 10px 9px;
+  padding: 7px 8px 6px;
   border: 1px solid var(--faint);
   background: linear-gradient(180deg, var(--wash), transparent);
   transition:
@@ -914,7 +940,7 @@ button:disabled {
 }
 
 .keywords__num {
-  justify-self: start;
+  align-self: center;
   min-width: 22px;
   padding: 2px 5px 0;
   font: 400 18px/1 var(--display);
@@ -925,11 +951,15 @@ button:disabled {
 }
 
 .keywords__word {
-  font: 400 clamp(24px, 6.8vw, 32px) / 1 var(--display);
+  font: 400 clamp(22px, 6.4vw, 30px) / 1 var(--display);
   color: var(--hi);
   letter-spacing: 0.05em;
   overflow-wrap: anywhere;
   text-shadow: var(--aberration), 0 0 10px var(--glow);
+}
+
+.keywords .keywords__word.is-long {
+  font-size: clamp(15px, 4.3vw, 22px);
 }
 
 .keywords li.is-lit {
@@ -957,11 +987,19 @@ button:disabled {
   justify-content: space-between;
   gap: 12px;
   width: 100%;
-  padding: 10px 12px;
+  padding: 7px 12px 7px 8px;
   border: 1px dashed var(--ph);
   background: repeating-linear-gradient(-45deg, transparent 0 8px, var(--wash) 8px 16px);
   touch-action: manipulation;
   user-select: none;
+}
+
+.code-toggle__name {
+  font: 400 15px/1 var(--display);
+  letter-spacing: 0.12em;
+  color: var(--dim);
+  width: min-content;
+  text-align: left;
 }
 
 .code-toggle__digits {
@@ -970,17 +1008,18 @@ button:disabled {
 }
 
 .code-toggle__digits b {
-  width: 42px;
-  height: 50px;
+  width: 38px;
+  height: 44px;
   display: grid;
   place-items: center;
   border: 1px solid var(--faint);
   background: var(--bg);
-  font: 400 44px/1 var(--display);
+  font: 400 40px/1 var(--display);
   color: var(--dim);
 }
 
 .code-toggle__label {
+  flex: 1;
   font: 400 18px/1.1 var(--display);
   letter-spacing: 0.1em;
   color: var(--hi);
@@ -1001,12 +1040,12 @@ button:disabled {
 /* Une ligne par indice : le mot à faire deviner, puis le champ. */
 .clue-rows {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .clue-row {
   display: grid;
-  grid-template-columns: 78px minmax(0, 1fr);
+  grid-template-columns: 84px minmax(0, 1fr);
   gap: 10px;
   align-items: stretch;
 }
@@ -1016,21 +1055,25 @@ button:disabled {
   align-content: center;
   justify-items: center;
   gap: 2px;
-  padding: 6px 4px;
+  padding: 4px;
   border: 1px solid var(--faint);
   color: var(--faint);
   text-align: center;
 }
 
 .clue-row__target b {
-  font: 400 34px/0.9 var(--display);
+  font: 400 30px/0.9 var(--display);
 }
 
 .clue-row__target span {
   font: 400 15px/1 var(--display);
   letter-spacing: 0.04em;
   max-width: 100%;
-  overflow-wrap: anywhere;
+}
+
+.clue-row__target span.is-long {
+  font-size: 12px;
+  letter-spacing: 0;
 }
 
 .clue-row.is-open .clue-row__target {
@@ -1077,6 +1120,121 @@ button:disabled {
 
 .clue-row__field input:focus {
   background: var(--wash);
+}
+
+/* Écran du crypteur : en-tête, code, trois lignes, puis clavier calé en bas. */
+.clues {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-areas: "head" "code" "rows" "send";
+  gap: 10px;
+}
+
+.clues__head {
+  grid-area: head;
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.clues__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  min-width: 0;
+}
+
+.clues__title .prompt {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.clues__kb-switch {
+  flex: none;
+  margin-left: auto;
+  padding: 0;
+  font-size: 11px;
+}
+
+.clues__code {
+  grid-area: code;
+}
+
+.clues__rows {
+  grid-area: rows;
+  align-content: start;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.clues__send {
+  grid-area: send;
+  display: grid;
+  gap: 8px;
+}
+
+/* Code affiché : les lignes montrent déjà les mots visés, la consigne s’efface. */
+.clues.is-open .clues-hint {
+  display: none;
+}
+
+.clues--retro .clue-row__field small {
+  display: none;
+}
+
+.clues--retro .clue-row__field {
+  align-content: center;
+}
+
+.clues--retro .clue-row__screen {
+  min-height: 46px;
+  padding-block: 8px 4px;
+}
+
+@media (orientation: portrait) and (max-height: 760px) {
+  /* Petit téléphone : la consigne ne s’affiche qu’avant d’afficher le code. */
+  .clues--retro .keywords li {
+    padding-block: 5px 4px;
+  }
+  .clues--retro .keywords__word {
+    font-size: clamp(20px, 5.6vw, 26px);
+  }
+}
+
+@media (orientation: landscape) {
+  .clues {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "head code"
+      "head rows"
+      "send send";
+    column-gap: 20px;
+  }
+  .clues__head {
+    align-content: start;
+  }
+  .clues.is-open .clues-hint {
+    display: block;
+  }
+}
+
+/* Grand écran : le clavier reste sous les lignes, dans la colonne de droite. */
+@media (orientation: landscape) and (min-height: 561px) {
+  .clues {
+    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-areas:
+      "head code"
+      "head rows"
+      "head send";
+    align-content: start;
+  }
+  .clues__rows {
+    overflow: visible;
+  }
 }
 
 /* ------------------------------------------------------------------------ */
@@ -1184,6 +1342,21 @@ button:disabled {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 6px;
+}
+
+@media (min-width: 380px) {
+  .picker__row {
+    grid-template-columns: 30px minmax(0, 1fr) auto;
+    grid-template-areas: "ord clue digits";
+    padding: 6px 0 7px;
+  }
+  .picker__digits {
+    grid-template-columns: repeat(4, 40px);
+    gap: 5px;
+  }
+  .picker__clue {
+    font-size: clamp(22px, 6.4vw, 30px);
+  }
 }
 
 .picker__digits button {
@@ -1789,7 +1962,7 @@ button:disabled {
 .handoff {
   position: relative;
   flex: 1;
-  min-height: 420px;
+  min-height: 380px;
   margin: 0 -18px -20px;
   display: flex;
 }
@@ -2127,14 +2300,10 @@ button:disabled {
 }
 
 .retro-kb {
-  position: sticky;
-  bottom: calc(-20px - env(safe-area-inset-bottom, 0px));
-  z-index: 4;
-  margin-inline: -6px;
-  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)) !important;
+  margin-inline: -8px;
   display: grid;
   gap: 6px;
-  padding: 10px 8px;
+  padding: 8px 6px;
   border: 1px solid var(--faint);
   border-radius: 6px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--bg) 70%, #000), var(--bg));
@@ -2184,15 +2353,371 @@ button:disabled {
   letter-spacing: 0.1em;
 }
 
-.retro-kb__key--fn:last-child {
+.retro-kb__key--action {
   background: var(--ph);
   color: var(--bg);
   text-shadow: none;
+  white-space: nowrap;
 }
 
-@media (max-width: 360px) {
+.retro-kb__key--action.is-waiting {
+  background: transparent;
+  color: var(--dim);
+  border-color: var(--faint);
+}
+
+@media (max-width: 360px), (orientation: portrait) and (max-height: 700px) {
   .retro-kb__key {
     height: 40px;
     font-size: 21px;
+  }
+}
+
+/* Paysage : les touches de fonction passent en colonne à droite, le clavier
+   ne prend que trois rangées. */
+@media (orientation: landscape) and (max-height: 560px) {
+  .retro-kb {
+    grid-template-columns: minmax(0, 1fr) minmax(120px, 17%);
+    gap: 5px 8px;
+    padding: 6px;
+  }
+  .retro-kb__row {
+    grid-column: 1;
+  }
+  .retro-kb__row--wide {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: repeat(3, minmax(0, 1fr));
+  }
+  .retro-kb__row--wide .retro-kb__key {
+    height: auto;
+  }
+  .retro-kb__key {
+    height: clamp(30px, 8.6vh, 40px);
+    font-size: 21px;
+  }
+  .retro-kb__key--fn,
+  .retro-kb__key--space {
+    font-size: 17px;
+  }
+}
+
+/* ------------------------------------------------------------------------ */
+/* Paysage sur téléphone : tout tient dans la hauteur, sans défiler           */
+
+@media (orientation: landscape) and (max-height: 560px) {
+  .crt__content {
+    padding: calc(env(safe-area-inset-top, 0px) + 10px) calc(env(safe-area-inset-right, 0px) + 20px)
+      calc(env(safe-area-inset-bottom, 0px) + 10px) calc(env(safe-area-inset-left, 0px) + 20px);
+  }
+
+  .app-frame {
+    gap: 8px;
+  }
+
+  .screen {
+    gap: 10px;
+  }
+
+  .screen--split {
+    gap: 10px 20px;
+  }
+
+  .screen__side,
+  .screen__main {
+    gap: 8px;
+  }
+
+  /* En-tête sur une ligne : titre, puis chaque équipe avec ses jetons. */
+  .hud {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+    padding-bottom: 6px;
+  }
+  .hud__top {
+    flex-direction: column;
+    gap: 3px;
+    font-size: 14px;
+  }
+  .hud__team {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 10px;
+    padding: 4px 8px;
+  }
+  .hud__name {
+    font-size: 16px;
+  }
+  .hud__stat {
+    font-size: 9px;
+  }
+  .menu-btn {
+    font-size: 24px;
+  }
+
+  /* Étapes de la manche sur une seule ligne. */
+  .steps__item {
+    display: flex;
+    gap: 6px;
+    padding-top: 3px;
+    border-top-width: 3px;
+    font-size: 9px;
+  }
+
+  .prompt {
+    font-size: 24px;
+  }
+
+  .hint {
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .btn {
+    padding: 8px 12px 6px;
+    font-size: 21px;
+  }
+
+  .btn--big {
+    padding-block: 10px 8px;
+    font-size: 24px;
+  }
+
+  .panel {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  .panel__title {
+    font-size: 18px;
+    padding-bottom: 6px;
+  }
+
+  .keywords__word {
+    font-size: 24px;
+  }
+
+  /* Crypteur */
+  .clues {
+    gap: 8px 20px;
+  }
+  .clues__head {
+    gap: 8px;
+  }
+  .code-toggle__digits b {
+    width: 32px;
+    height: 36px;
+    font-size: 32px;
+  }
+  .clues .clue-rows {
+    gap: 5px;
+  }
+  .clues .clue-row {
+    grid-template-columns: 124px minmax(0, 1fr);
+  }
+  .clues .clue-row__target {
+    grid-auto-flow: column;
+    justify-content: start;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 6px;
+  }
+  .clues .clue-row__target b {
+    font-size: 24px;
+  }
+  .clues .clue-row__target span {
+    font-size: 14px;
+    text-align: left;
+  }
+  .clues--retro .clue-row__screen {
+    min-height: 32px;
+    padding-block: 4px 2px;
+    font-size: 26px;
+  }
+
+  /* Décodage */
+  .picker__row {
+    padding-block: 4px 5px;
+  }
+  .picker__digits button {
+    height: 36px;
+    font-size: 24px;
+  }
+  .picker__ord {
+    width: 26px;
+    height: 26px;
+    font-size: 19px;
+  }
+  .picker__clue {
+    font-size: 24px;
+  }
+  .picker-hint {
+    display: none;
+  }
+  .notebook ul {
+    min-height: 48px;
+  }
+  .digits b {
+    width: 36px;
+    height: 42px;
+    font-size: 34px;
+  }
+
+  /* Passage du téléphone : nom à gauche, consigne et bouton à droite. */
+  .handoff {
+    min-height: 0;
+    margin: 0 -20px -10px;
+  }
+  .handoff__ui {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    grid-template-rows: auto 1fr auto;
+    grid-template-areas:
+      "read read"
+      "who who"
+      "warn cta";
+    align-items: end;
+    gap: 10px 16px;
+    padding: 4px 20px 10px;
+  }
+  .handoff__read {
+    grid-area: read;
+  }
+  .handoff__who {
+    grid-area: who;
+    align-self: center;
+    padding: 0;
+  }
+  .handoff__name {
+    font-size: clamp(48px, 17vh, 96px);
+  }
+  .handoff__sub {
+    font-size: 20px;
+  }
+  .handoff__warn {
+    grid-area: warn;
+    font-size: 12px;
+    padding: 8px;
+  }
+  .handoff .btn {
+    grid-area: cta;
+  }
+
+  /* Révélation */
+  .reels {
+    --reel-h: 52px;
+  }
+  .reel__strip span {
+    font-size: 48px;
+  }
+  .reel {
+    padding: 6px 4px;
+  }
+  .reel__clue {
+    font-size: 19px;
+  }
+  .verdict {
+    gap: 4px;
+    padding: 8px 12px;
+  }
+  .verdict__big {
+    font-size: 30px;
+  }
+  .verdict .digits b {
+    width: 26px;
+    height: 30px;
+    font-size: 24px;
+  }
+  .token-slot {
+    width: 30px;
+    height: 30px;
+  }
+
+  /* Bilan */
+  .summary .display {
+    font-size: clamp(30px, 10vh, 44px);
+  }
+  .summary__team {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 4px 14px;
+    padding: 8px 12px;
+  }
+  .summary__name {
+    grid-row: span 2;
+    font-size: 26px;
+  }
+  .summary__status {
+    grid-column: 1 / -1;
+    padding: 4px 8px;
+    font-size: 18px;
+  }
+  .summary__pips i {
+    width: 18px;
+    height: 18px;
+  }
+
+  /* Fin de partie */
+  .victory__trophy {
+    width: 48px;
+    height: 48px;
+  }
+  .display--xl {
+    font-size: clamp(34px, 11vh, 52px);
+  }
+  .victory__words {
+    font-size: 18px;
+  }
+  .timeline__cell {
+    height: 26px;
+  }
+
+  /* Menu : logo à gauche, commandes à droite sur deux colonnes. */
+  .menu {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+    align-content: center;
+    column-gap: 24px;
+    padding-block: 0;
+  }
+  .menu .logo {
+    font-size: clamp(56px, 20vh, 96px);
+  }
+  .menu .eyebrow {
+    grid-column: 1;
+  }
+  .menu__list {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    width: 100%;
+    margin: 0;
+  }
+  .menu__list > :first-child:not(.btn--ghost),
+  .menu__list .linkish {
+    grid-column: 1 / -1;
+  }
+  .menu__list .btn--ghost small {
+    display: none;
+  }
+
+  /* Règles et création des équipes */
+  .setup__team {
+    padding: 8px 10px;
+    gap: 8px;
+  }
+  .field input {
+    font-size: 24px;
+  }
+}
+
+/* Petit téléphone en portrait : la frise des étapes s’efface pendant la
+   saisie des indices et le passage du téléphone. */
+@media (orientation: portrait) and (max-height: 740px) {
+  .app-frame.is-fit > .steps {
+    display: none;
   }
 }

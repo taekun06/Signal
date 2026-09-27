@@ -1,5 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
-import { enterFullscreen, keepScreenOn, promptInstall, toggleFullscreen, useDevice } from "../fx/device";
+import { keepScreenOn, promptInstall, toggleFullscreen, useDevice } from "../fx/device";
 import { useScreenShape } from "../fx/display";
 import { play, setSoundEnabled, soundEnabled, unlockAudio } from "../fx/feedback";
 import { type TeamId, MIN_PLAYERS, RuleError } from "../game/rules";
@@ -59,7 +59,9 @@ function Boot({ onDone }: { onDone: () => void }) {
   }, []);
   const start = () => {
     unlockAudio();
-    void enterFullscreen();
+    // Pas de plein écran automatique : sur les téléphones à encoche, certains
+    // navigateurs laissent alors une bande claire en haut. L’application
+    // installée s’ouvre déjà sans barre d’adresse.
     void keepScreenOn();
     play("boot");
     onDone();
