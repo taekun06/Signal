@@ -195,7 +195,7 @@ export function pendingTeams(state: GameState): TeamId[] {
 // ---------------------------------------------------------------------------
 // Création de partie
 
-function sanitizeConfig(config: TeamConfig, fallbackName: string): TeamConfig {
+export function sanitizeConfig(config: TeamConfig, fallbackName: string): TeamConfig {
   const players = config.players.map((player) => player.trim()).filter(Boolean);
   if (players.length < MIN_PLAYERS) {
     throw new RuleError(`Il faut au moins ${MIN_PLAYERS} joueurs dans l’équipe ${config.name.trim() || fallbackName}.`);

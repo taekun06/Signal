@@ -4,31 +4,63 @@ import { useImmersion, useScreenShape } from "../fx/display";
 import { play, setSoundEnabled, soundEnabled, unlockAudio } from "../fx/feedback";
 import { type TeamId, MIN_PLAYERS, RuleError } from "../game/rules";
 import { WORDS } from "../game/words";
+import { cleanRoom } from "../net/link";
 import { type LocalSave, clearLocalGame, loadLocalGame, newLocalGame } from "../net/localGame";
+import { type OnlineSave, clearOnlineGame, loadOnlineGame } from "../net/onlineGame";
 import { Button, Crt, PowerCycle, TypeText } from "./kit";
 import { LocalGame } from "./LocalGame";
+import { OnlineGame, OnlineSetup } from "./Online";
+import { type SetupTeam, TeamFields } from "./TeamFields";
 import { useToast } from "./toast";
 
-type View = { name: "boot" } | { name: "menu" } | { name: "setup" } | { name: "rules" } | { name: "local"; save: LocalSave };
+type View =
+  | { name: "boot" }
+  | { name: "menu" }
+  | { name: "setup" }
+  | { name: "rules" }
+  | { name: "local"; save: LocalSave }
+  | { name: "online-setup"; room?: string }
+  | { name: "online"; save: OnlineSave };
+
+/** Code de canal reçu par le QR code (`?salle=ABCD`), retiré de l’adresse. */
+function roomFromUrl(): string | undefined {
+  const params = new URLSearchParams(location.search);
+  const room = cleanRoom(params.get("salle") ?? "");
+  if (params.has("salle")) {
+    params.delete("salle");
+    const query = params.toString();
+    history.replaceState(null, "", location.pathname + (query ? `?${query}` : "") + location.hash);
+  }
+  return room.length === 4 ? room : undefined;
+}
 
 export function App() {
   const [view, setView] = useState<View>({ name: "boot" });
+  const [joinRoom] = useState(roomFromUrl);
 
   if (view.name === "local") {
     return <LocalGame key={view.save.state.seed} initial={view.save} onExit={() => setView({ name: "menu" })} />;
+  }
+  if (view.name === "online") {
+    return <OnlineGame key={`${view.save.room}:${view.save.device}`} initial={view.save} onExit={() => setView({ name: "menu" })} />;
   }
 
   return (
     <Crt tint="A">
       <div class="app-frame">
         <PowerCycle id={view.name}>
-          {view.name === "boot" && <Boot onDone={() => setView({ name: "menu" })} />}
+          {view.name === "boot" && <Boot onDone={() => setView(joinRoom ? { name: "online-setup", room: joinRoom } : { name: "menu" })} />}
           {view.name === "menu" && (
             <Menu
               onNew={() => setView({ name: "setup" })}
               onResume={(save) => setView({ name: "local", save })}
+              onOnline={() => setView({ name: "online-setup" })}
+              onResumeOnline={(save) => setView({ name: "online", save })}
               onRules={() => setView({ name: "rules" })}
             />
+          )}
+          {view.name === "online-setup" && (
+            <OnlineSetup room={view.room} onBack={() => setView({ name: "menu" })} onReady={(save) => setView({ name: "online", save })} />
           )}
           {view.name === "setup" && <Setup onBack={() => setView({ name: "menu" })} onStart={(save) => setView({ name: "local", save })} />}
           {view.name === "rules" && <Rules onBack={() => setView({ name: "menu" })} />}
@@ -84,8 +116,22 @@ function Boot({ onDone }: { onDone: () => void }) {
 // ---------------------------------------------------------------------------
 // Menu principal
 
-function Menu({ onNew, onResume, onRules }: { onNew: () => void; onResume: (save: LocalSave) => void; onRules: () => void }) {
+function Menu({
+  onNew,
+  onResume,
+  onOnline,
+  onResumeOnline,
+  onRules,
+}: {
+  onNew: () => void;
+  onResume: (save: LocalSave) => void;
+  onOnline: () => void;
+  onResumeOnline: (save: OnlineSave) => void;
+  onRules: () => void;
+}) {
   const [saved, setSaved] = useState(() => loadLocalGame());
+  const [online, setOnline] = useState(() => loadOnlineGame());
+  const onlineInProgress = online && online.state?.phase !== "over";
   const [sound, setSound] = useState(soundEnabled());
   const [shape, setShape] = useScreenShape();
   const [immersion, setImmersion] = useImmersion();
@@ -108,18 +154,23 @@ function Menu({ onNew, onResume, onRules }: { onNew: () => void; onResume: (save
             </small>
           </Button>
         )}
-        <Button
-          variant={inProgress ? "ghost" : "primary"}
-          onClick={() => {
-            onNew();
-          }}
-        >
-          ▶ NOUVELLE PARTIE
-          <small>Un téléphone pour les deux équipes</small>
+        {onlineInProgress && (
+          <Button onClick={() => onResumeOnline(online)}>
+            ▶ REPRENDRE · CANAL {online.room}
+            <small>
+              {online.state
+                ? `${online.state.teams.A.name} contre ${online.state.teams.B.name} · manche ${online.state.rounds.length}`
+                : "Salle d’attente, deux téléphones"}
+            </small>
+          </Button>
+        )}
+        <Button variant={inProgress || onlineInProgress ? "ghost" : "primary"} onClick={onOnline}>
+          ▶ DEUX TÉLÉPHONES
+          <small>Un téléphone par équipe, reliés en direct</small>
         </Button>
-        <Button variant="ghost" disabled sound={null}>
-          ▶ PARTIE EN LIGNE
-          <small>Deux téléphones · bientôt</small>
+        <Button variant="ghost" onClick={onNew}>
+          ▶ UN SEUL TÉLÉPHONE
+          <small>Les deux équipes se le passent</small>
         </Button>
         <Button variant="ghost" onClick={onRules}>
           ▶ RÈGLES
@@ -154,6 +205,18 @@ function Menu({ onNew, onResume, onRules }: { onNew: () => void; onResume: (save
         >
           ▶ SON : {sound ? "ACTIVÉ" : "COUPÉ"}
         </Button>
+        {onlineInProgress && (
+          <button
+            type="button"
+            class="linkish"
+            onClick={() => {
+              clearOnlineGame();
+              setOnline(null);
+            }}
+          >
+            oublier le canal {online.room}
+          </button>
+        )}
         {inProgress && (
           <button
             type="button"
@@ -175,11 +238,6 @@ function Menu({ onNew, onResume, onRules }: { onNew: () => void; onResume: (save
 // Création des équipes
 
 const SETUP_KEY = "signal-zero:last-setup";
-
-interface SetupTeam {
-  name: string;
-  players: string[];
-}
 
 function loadSetup(): Record<TeamId, SetupTeam> {
   try {
@@ -222,52 +280,7 @@ function Setup({ onBack, onStart }: { onBack: () => void; onStart: (save: LocalS
       </p>
       <div class="setup__teams">
         {(["A", "B"] as TeamId[]).map((team) => (
-          <section class="setup__team" data-tint={team} key={team}>
-            <label class="field">
-              <span>{team === "A" ? "◆" : "▲"} NOM DE L’ÉQUIPE</span>
-              <input
-                id={`team-${team}`}
-                value={teams[team].name}
-                maxLength={18}
-                autocomplete="off"
-                onInput={(event) => update(team, { name: (event.currentTarget as HTMLInputElement).value })}
-              />
-            </label>
-            <div class="setup__players">
-              {teams[team].players.map((player, index) => (
-                <div class="setup__player" key={index}>
-                  <span class="setup__num">{index + 1}</span>
-                  <input
-                    id={`player-${team}-${index}`}
-                    value={player}
-                    maxLength={16}
-                    autocomplete="off"
-                    placeholder={`Joueur ${index + 1}`}
-                    onInput={(event) => {
-                      const players = [...teams[team].players];
-                      players[index] = (event.currentTarget as HTMLInputElement).value;
-                      update(team, { players });
-                    }}
-                  />
-                  {teams[team].players.length > MIN_PLAYERS && (
-                    <button
-                      type="button"
-                      class="icon-btn"
-                      aria-label={`Retirer le joueur ${index + 1}`}
-                      onClick={() => update(team, { players: teams[team].players.filter((_, i) => i !== index) })}
-                    >
-                      ×
-                    </button>
-                  )}
-                </div>
-              ))}
-              {teams[team].players.length < 6 && (
-                <button type="button" class="linkish" onClick={() => update(team, { players: [...teams[team].players, ""] })}>
-                  + AJOUTER UN JOUEUR
-                </button>
-              )}
-            </div>
-          </section>
+          <TeamFields key={team} team={team} value={teams[team]} onChange={(patch) => update(team, patch)} />
         ))}
       </div>
       <div class="actions">

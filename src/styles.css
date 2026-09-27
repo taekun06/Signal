@@ -3074,3 +3074,322 @@ button:disabled {
   color: var(--dim);
   opacity: 0.55;
 }
+
+/* ------------------------------------------------------------------------ */
+/* Deux téléphones : canal, salle d’attente, écoute                          */
+
+.setup__teams--one {
+  grid-template-columns: minmax(0, 1fr) !important;
+  max-width: 520px;
+}
+
+.channel-field {
+  max-width: 320px;
+}
+
+.field input.channel-input {
+  font-size: 64px;
+  letter-spacing: 0.45em;
+  padding-left: 0.2em;
+  text-transform: uppercase;
+  text-shadow: var(--aberration), 0 0 14px var(--glow);
+}
+
+.channel-input::placeholder {
+  color: var(--faint);
+}
+
+/* Témoin de liaison : une diode et un mot, comme sur un modem. */
+.hud-side {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: stretch;
+}
+
+.hud-side .menu-btn {
+  flex: 1;
+}
+
+.hud-row--lobby {
+  justify-content: flex-end;
+}
+
+.link-led {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font: 400 13px/1 var(--display);
+  letter-spacing: 0.08em;
+  color: var(--dim);
+  white-space: nowrap;
+}
+
+.link-led i {
+  width: 7px;
+  height: 7px;
+  background: var(--faint);
+  box-shadow: none;
+}
+
+.link-led.is-online i {
+  background: var(--ph);
+  box-shadow: 0 0 6px var(--glow);
+  animation: link-blink 2s steps(1) infinite;
+}
+
+.link-led.is-waiting i,
+.link-led.is-connecting i {
+  background: var(--dim);
+  animation: blink 0.9s steps(1) infinite;
+}
+
+.link-led.is-lost,
+.link-led.is-missing,
+.link-led.is-full {
+  color: var(--bad);
+}
+
+.link-led.is-lost i,
+.link-led.is-missing i,
+.link-led.is-full i {
+  background: var(--bad);
+  box-shadow: 0 0 6px var(--bad-glow);
+  animation: blink 0.4s steps(1) infinite;
+}
+
+/* Clignement bref de la diode : des données passent. */
+@keyframes link-blink {
+  0%,
+  88% {
+    opacity: 1;
+  }
+  90%,
+  94% {
+    opacity: 0.2;
+  }
+}
+
+.link-banner {
+  margin: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--bad);
+  color: var(--bad);
+  font: 400 16px/1.1 var(--display);
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-shadow: 0 0 8px var(--bad-glow);
+  animation: blink 1.2s steps(1) infinite;
+}
+
+.lobby {
+  position: relative;
+  gap: 16px;
+}
+
+.lobby__scope {
+  position: absolute;
+  inset: -10px calc(-1 * var(--pad-side)) auto;
+  width: calc(100% + 2 * var(--pad-side));
+  height: 170px;
+  opacity: 0.75;
+  pointer-events: none;
+  transition: opacity 0.6s;
+}
+
+.lobby__scope.is-calm {
+  opacity: 0.28;
+}
+
+.lobby > :not(.lobby__scope) {
+  position: relative;
+}
+
+.lobby__head {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding-top: 18px;
+  min-height: 150px;
+  text-align: center;
+}
+
+.lobby__code {
+  margin: 0;
+  display: flex;
+  gap: 0.12em;
+  font: 400 clamp(76px, 26vw, 128px) / 0.85 var(--display);
+  color: var(--hi);
+  text-shadow:
+    -2px 0 rgba(255, 40, 90, 0.6),
+    2px 0 rgba(40, 170, 255, 0.6),
+    0 0 22px var(--glow);
+}
+
+/* Chaque lettre s’accroche l’une après l’autre, comme un compteur de fréquence. */
+.lobby__code b {
+  font-weight: 400;
+  min-width: 0.62em;
+  text-align: center;
+  border-bottom: 3px solid var(--ph);
+  background: linear-gradient(180deg, transparent 60%, var(--wash));
+  animation: channel-lock 0.7s steps(6) both;
+  animation-delay: calc(var(--i) * 0.18s + 0.2s);
+}
+
+@keyframes channel-lock {
+  0% {
+    opacity: 0;
+    transform: translateY(-0.3em);
+    filter: blur(3px);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(0.05em);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+.lobby__line {
+  margin: 6px 0 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font: 400 19px/1.15 var(--display);
+  color: var(--ph);
+  max-width: 34ch;
+  text-align: left;
+}
+
+.lobby__line i {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  background: var(--ph);
+  box-shadow: 0 0 8px var(--glow);
+  animation: blink 0.9s steps(1) infinite;
+}
+
+.lobby__line.is-online i {
+  animation: none;
+}
+
+.lobby__line.is-missing,
+.lobby__line.is-full,
+.lobby__line.is-lost {
+  color: var(--bad);
+}
+
+.lobby__line.is-missing i,
+.lobby__line.is-full i,
+.lobby__line.is-lost i {
+  background: var(--bad);
+  box-shadow: 0 0 8px var(--bad-glow);
+}
+
+.lobby__qr {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+}
+
+.qr {
+  width: clamp(128px, 38vw, 176px);
+  height: auto;
+  display: block;
+  filter: drop-shadow(0 0 10px var(--glow));
+}
+
+/* Modules sombres sur fond de phosphore : lisible par tous les appareils photo. */
+.qr__bg {
+  fill: var(--hi);
+}
+
+.qr__dots {
+  fill: var(--bg);
+}
+
+.lobby__teams {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: stretch;
+}
+
+.lobby__team {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid var(--ph);
+  background: linear-gradient(180deg, var(--wash), transparent);
+  min-width: 0;
+}
+
+.lobby__team.is-empty {
+  border-style: dashed;
+  border-color: var(--faint);
+  background: none;
+  color: var(--faint);
+  align-content: center;
+  justify-items: center;
+}
+
+.lobby__team .hint {
+  overflow-wrap: anywhere;
+}
+
+.lobby__name {
+  font: 400 26px/1 var(--display);
+  color: var(--hi);
+  overflow-wrap: anywhere;
+}
+
+.lobby__team.is-empty .lobby__name {
+  color: var(--faint);
+  animation: blink 1.4s steps(1) infinite;
+}
+
+.lobby__versus {
+  align-self: center;
+  font: 400 26px/1 var(--display);
+  color: var(--dim);
+}
+
+.lobby__timer {
+  text-align: center;
+}
+
+.lobby > .actions {
+  margin-top: auto;
+}
+
+.online-choose .lead {
+  text-align: center;
+}
+
+/* Écoute : l’écran capte la trace de l’équipe d’en face. */
+.listen .handoff__who {
+  gap: 10px;
+}
+
+.listen__title {
+  margin: 0;
+  font: 400 clamp(34px, 10vw, 54px) / 0.95 var(--display);
+  color: var(--hi);
+  text-wrap: balance;
+  text-shadow:
+    -1.5px 0 rgba(255, 40, 90, 0.6),
+    1.5px 0 rgba(40, 170, 255, 0.6),
+    0 0 16px var(--glow);
+}
+
+.listen .countdown {
+  font-size: 34px;
+}
