@@ -13,7 +13,10 @@ type Sound =
   | "power"
   | "alarm"
   | "victory"
-  | "error";
+  | "error"
+  | "reel"
+  | "drop"
+  | "static";
 
 const STORAGE_KEY = "signal-zero:sound";
 
@@ -134,6 +137,18 @@ export function play(sound: Sound): void {
     case "error":
       tone(160, 0, 0.14, "square", 0.04);
       break;
+    case "reel":
+      tone(520, 0, 0.03, "square", 0.03);
+      tone(260, 0.03, 0.05, "square", 0.025);
+      break;
+    case "drop":
+      tone(110, 0, 0.16, "sine", 0.09, 60);
+      noise(0, 0.05, 0.05);
+      break;
+    case "static":
+      noise(0, 1.1, 0.05);
+      tone(15600, 0, 1.1, "sine", 0.004);
+      break;
   }
 }
 
@@ -146,7 +161,7 @@ export function vibrate(pattern: number | number[]): void {
   }
 }
 
-/** Déclenche le brouillage visuel de l’écran (écouté par le cadre CRT). */
-export function glitch(): void {
-  window.dispatchEvent(new CustomEvent("crt-glitch"));
+/** Affiche le signal crypté par-dessus l’écran, avec un message qui perce le brouillage. */
+export function scramble(text: string): void {
+  window.dispatchEvent(new CustomEvent("crt-scramble", { detail: text }));
 }

@@ -1,10 +1,11 @@
 import { useState } from "preact/hooks";
 import { toggleFullscreen, useDevice } from "../fx/device";
+import { useScreenShape } from "../fx/display";
 import { setSoundEnabled, soundEnabled } from "../fx/feedback";
-import { type TeamId, currentRound, pendingTeams } from "../game/rules";
+import { type TeamId, currentRound, endOfRoundResult, pendingTeams } from "../game/rules";
 import { type LocalSave, randomSeed, useLocalGame } from "../net/localGame";
-import { Button, Crt, HeaderBar, PowerCycle } from "./kit";
-import { CluesScreen, DecodeScreen, GameOverScreen, HandoffScreen, RevealScreen, TiebreakScreen } from "./screens";
+import { Button, Crt, HeaderBar, PowerCycle, RoundSteps, teamMark } from "./kit";
+import { CluesScreen, DecodeScreen, GameOverScreen, HandoffScreen, RevealScreen, SummaryScreen, TiebreakScreen } from "./screens";
 import { useToast } from "./toast";
 
 /** Partie à deux équipes sur un seul téléphone qu’on se passe. */
@@ -14,7 +15,10 @@ export function LocalGame({ initial, onExit }: { initial: LocalSave; onExit: () 
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmQuit, setConfirmQuit] = useState(false);
   const [sound, setSound] = useState(soundEnabled());
+  const [shape, setShape] = useScreenShape();
   const device = useDevice();
+  // Bilan affiché entre deux manches (numéro de la manche terminée).
+  const [summary, setSummary] = useState<number | null>(null);
 
   const round = currentRound(state);
   const actor: TeamId | undefined = pendingTeams(state)[0];
@@ -24,10 +28,26 @@ export function LocalGame({ initial, onExit }: { initial: LocalSave; onExit: () 
   let tint: TeamId = actor ?? state.active;
   if (state.phase === "over" && state.result && state.result.winner !== "draw") tint = state.result.winner;
 
-  const screenId = [state.phase, round.number, state.active, actor ?? "-", handoff ? "handoff" : "play"].join(":");
+  const showSummary = summary === round.number && state.phase === "reveal";
+  const screenId = [state.phase, round.number, state.active, actor ?? "-", handoff ? "handoff" : "play", showSummary ? "summary" : ""].join(":");
+
+  const continueReveal = () => dispatch({ type: "continue", round: round.number, active: state.active });
+  const endsGame = state.phase === "reveal" && state.active === "B" && endOfRoundResult(state) !== null;
+  const revealLabel =
+    state.active === "A" ? `SIGNAL SUIVANT : ${teamMark("B")} ${state.teams.B.name.toUpperCase()} ▶` : endsGame ? "RÉSULTAT FINAL ▶" : "BILAN DE LA MANCHE ▶";
 
   let content;
-  if (handoff) {
+  if (showSummary) {
+    content = (
+      <SummaryScreen
+        state={state}
+        onContinue={() => {
+          setSummary(null);
+          continueReveal();
+        }}
+      />
+    );
+  } else if (handoff) {
     content = <HandoffScreen state={state} team={actor} onReady={() => setHolder(task)} />;
   } else if (actor && state.phase === "clues") {
     content = <CluesScreen state={state} team={actor} dispatch={dispatch} toast={toast} />;
@@ -36,7 +56,13 @@ export function LocalGame({ initial, onExit }: { initial: LocalSave; onExit: () 
   } else if (actor && state.phase === "tiebreak") {
     content = <TiebreakScreen state={state} team={actor} dispatch={dispatch} toast={toast} />;
   } else if (state.phase === "reveal") {
-    content = <RevealScreen state={state} onContinue={() => dispatch({ type: "continue", round: round.number, active: state.active })} />;
+    content = (
+      <RevealScreen
+        state={state}
+        continueLabel={revealLabel}
+        onContinue={() => (state.active === "B" && !endsGame ? setSummary(round.number) : continueReveal())}
+      />
+    );
   } else {
     content = (
       <GameOverScreen state={state} onRematch={() => dispatch({ type: "rematch", seed: randomSeed() })} onMenu={onExit} />
@@ -47,12 +73,15 @@ export function LocalGame({ initial, onExit }: { initial: LocalSave; onExit: () 
     <Crt tint={tint}>
       <div class="app-frame">
         <div class="hud-row">
-          <HeaderBar state={state} label={state.phase === "tiebreak" ? "DÉPARTAGE" : undefined} />
+          <HeaderBar state={state} label={state.phase === "tiebreak" ? "DÉPARTAGE" : undefined} focus={actor} />
           <button type="button" class="menu-btn" aria-label="Menu" onClick={() => setMenuOpen(true)}>
             ≡
           </button>
         </div>
-        <PowerCycle id={screenId}>{content}</PowerCycle>
+        {state.phase !== "over" && state.phase !== "tiebreak" && !showSummary && <RoundSteps state={state} />}
+        <PowerCycle id={screenId} offOn={handoff}>
+          {content}
+        </PowerCycle>
         {toastNode}
         {menuOpen && (
           <div class="overlay" role="dialog" aria-modal="true" aria-label="Menu de la partie">
@@ -69,6 +98,9 @@ export function LocalGame({ initial, onExit }: { initial: LocalSave; onExit: () 
                     }}
                   >
                     SON : {sound ? "ACTIVÉ" : "COUPÉ"}
+                  </Button>
+                  <Button variant="ghost" onClick={() => setShape(shape === "curved" ? "flat" : "curved")}>
+                    ÉCRAN : {shape === "curved" ? "BOMBÉ" : "PLAT"}
                   </Button>
                   {device.canFullscreen && (
                     <Button variant="ghost" onClick={() => void toggleFullscreen()}>
