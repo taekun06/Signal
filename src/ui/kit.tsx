@@ -46,8 +46,40 @@ function ScrambleLayer({ tint }: { tint: Tint }) {
 // Le tube ne chauffe qu’une fois, au lancement de l’application.
 let warmedUp = false;
 
+/**
+ * Taille de tube pour laquelle l’interface est dessinée (portrait, paysage).
+ * Au-delà ou en deçà, tout est mis à l’échelle d’un bloc, comme un jeu qui
+ * travaille dans une résolution de référence.
+ */
+const REFERENCE = { portrait: [400, 800], landscape: [840, 370], wide: [960, 660] } as const;
+const ZOOM_MIN = 0.8;
+const ZOOM_MAX = 1.3;
+
+function useUiZoom(ref: { current: HTMLElement | null }) {
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const update = () => {
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      if (!w || !h) return;
+      // Paysage de téléphone (mise en page compacte) ou grand écran.
+      const compact = window.matchMedia("(max-height: 560px)").matches;
+      const [rw, rh] = h >= w ? REFERENCE.portrait : compact ? REFERENCE.landscape : REFERENCE.wide;
+      const zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.min(w / rw, h / rh)));
+      el.style.setProperty("--ui-zoom", zoom.toFixed(3));
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+}
+
 export function Crt({ tint, children }: { tint: Tint; children: ComponentChildren }) {
   const noiseRef = useRef<HTMLCanvasElement>(null);
+  const crtRef = useRef<HTMLDivElement>(null);
+  useUiZoom(crtRef);
   const [shape] = useScreenShape();
   const curved = shape === "curved";
   const [warming, setWarming] = useState(() => !warmedUp && !reducedMotion());
@@ -116,8 +148,13 @@ export function Crt({ tint, children }: { tint: Tint; children: ComponentChildre
   }, []);
 
   return (
-    <div class="monitor" style={{ "--monitor-photo": `url("${new URL("crt-monitor.jpg", document.baseURI).href}")` }}>
+    <div
+      class="monitor"
+      data-tint={tint}
+      style={{ "--monitor-photo": `url("${new URL("crt-monitor.jpg", document.baseURI).href}")` }}
+    >
       <div
+        ref={crtRef}
         class={`crt${curved ? " is-curved" : ""}${curved && supportsWarp ? " is-warped" : ""}${warming ? " is-warming" : ""}${jitter ? " is-jitter" : ""}`}
         data-tint={tint}
       >
@@ -132,6 +169,7 @@ export function Crt({ tint, children }: { tint: Tint; children: ComponentChildre
         {curved && <div class="crt__glass" aria-hidden="true" />}
         <ScrambleLayer tint={tint} />
       </div>
+      <span class="monitor__led" aria-hidden="true" />
       <svg class="crt__defs" width="0" height="0" aria-hidden="true">
         <filter
           id="crt-barrel"

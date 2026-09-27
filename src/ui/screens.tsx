@@ -1,3 +1,4 @@
+import type { ComponentChildren } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { PHOSPHOR, runOscilloscope } from "../fx/canvasFx";
 import { useKeyboardKind } from "../fx/display";
@@ -375,7 +376,15 @@ export function DecodeScreen({ state, team, dispatch, toast }: ScreenProps) {
 // Révélation publique d’une transmission : le code se cale au compteur, puis
 // le verdict de l’équipe, puis celui des adversaires.
 
-export function RevealScreen({ state, onContinue, continueLabel }: { state: GameState; onContinue: () => void; continueLabel: string }) {
+export function RevealScreen({
+  state,
+  onContinue,
+  continueLabel,
+}: {
+  state: GameState;
+  onContinue: () => void;
+  continueLabel: ComponentChildren;
+}) {
   const round = currentRound(state);
   const active = state.active;
   const opponent = otherTeam(active);
@@ -690,7 +699,17 @@ export function GameOverScreen({ state, onRematch, onMenu }: { state: GameState;
               }),
             ])}
           </div>
-          <p class="hint">Coche = code compris · croix rouge = malentendu · cible = interception réussie.</p>
+          <p class="hint timeline__legend">
+            <span>
+              <PixelIcon name="check" size={12} /> compris
+            </span>
+            <span>
+              <PixelIcon name="cross" size={12} class="is-bad" /> malentendu
+            </span>
+            <span>
+              <PixelIcon name="target" size={12} /> interception
+            </span>
+          </p>
         </Panel>
         <Panel title="LES MOTS SECRETS ÉTAIENT">
           {(["A", "B"] as TeamId[]).map((team) => (

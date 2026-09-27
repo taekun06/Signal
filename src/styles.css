@@ -4,6 +4,19 @@
    zone verte dans un écran ambre (et inversement). */
 
 :root {
+  /* Zone sûre : barres système, encoche, barre de gestes. La valeur « max »
+     évite que la mise en page saute quand la barre du bas se replie. */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: max(env(safe-area-inset-bottom, 0px), env(safe-area-max-inset-bottom, 0px));
+  --safe-left: env(safe-area-inset-left, 0px);
+  /* Marges du boîtier autour du tube, puis marges intérieures avant le texte. */
+  --bezel-top: 8px;
+  --bezel-side: 6px;
+  --bezel-bottom: 16px;
+  --pad-top: 18px;
+  --pad-side: 16px;
+  --pad-bottom: 18px;
   --bad: #ff4b3e;
   --bad-glow: rgba(255, 75, 62, 0.6);
   --display: "VT323", "Courier New", monospace;
@@ -80,16 +93,37 @@ button:disabled {
 /* ------------------------------------------------------------------------ */
 /* Cadre CRT                                                                  */
 
+/* Boîtier du téléviseur : plastique sombre autour du tube, voyant allumé. */
 .monitor {
   position: fixed;
   inset: 0;
-  background: #030201;
+  background:
+    radial-gradient(140% 50% at 50% 0%, #1d1812, transparent 70%),
+    linear-gradient(180deg, #120f0b, #080605 60%, #0d0a08);
+}
+
+.monitor__led {
+  position: absolute;
+  right: calc(var(--safe-right) + var(--bezel-side) + 18px);
+  bottom: calc(var(--safe-bottom) + (var(--bezel-bottom) - 5px) / 2);
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ph);
+  box-shadow: 0 0 6px 1px var(--glow);
+  transition: background 0.5s ease;
 }
 
 .crt {
   position: absolute;
-  inset: 0;
+  inset: calc(var(--safe-top) + var(--bezel-top)) calc(var(--safe-right) + var(--bezel-side))
+    calc(var(--safe-bottom) + var(--bezel-bottom)) calc(var(--safe-left) + var(--bezel-side));
+  border-radius: 16px;
   overflow: hidden;
+  box-shadow:
+    0 0 0 1px #000,
+    0 0 0 2px rgba(255, 235, 200, 0.07),
+    0 2px 10px rgba(0, 0, 0, 0.8);
   background: radial-gradient(ellipse at 50% 45%, var(--bg-hi) 0%, var(--bg) 70%);
   transition:
     background 0.5s ease,
@@ -108,8 +142,7 @@ button:disabled {
   flex-direction: column;
   overflow-x: hidden;
   overflow-y: auto;
-  padding: calc(env(safe-area-inset-top, 0px) + 16px) calc(env(safe-area-inset-right, 0px) + 18px)
-    calc(env(safe-area-inset-bottom, 0px) + 20px) calc(env(safe-area-inset-left, 0px) + 18px);
+  padding: var(--pad-top) var(--pad-side) var(--pad-bottom);
   text-shadow: 0 0 6px var(--glow);
   animation: flicker 0.16s steps(2) infinite;
   scrollbar-width: thin;
@@ -155,7 +188,7 @@ button:disabled {
 }
 
 .crt__vignette {
-  border-radius: 26px;
+  border-radius: inherit;
   box-shadow:
     inset 0 0 0 6px #000,
     inset 0 0 90px 30px rgba(0, 0, 0, 0.8),
@@ -338,6 +371,14 @@ button:disabled {
   .crt.is-curved {
     border-radius: 7% / 9%;
   }
+
+  .crt {
+    box-shadow: none;
+  }
+
+  .monitor__led {
+    display: none;
+  }
 }
 
 /* Changement d’écran : un trait blanc s’ouvre sur la nouvelle image. */
@@ -495,7 +536,11 @@ button:disabled {
 /* Structure                                                                  */
 
 /* Le cadre remplit toute la hauteur du tube ; un écran trop long défile. */
+/* Toute l’interface est dessinée pour une taille de référence puis mise à
+   l’échelle (--ui-zoom, calculé d’après la taille du tube) : même disposition
+   dans le navigateur et dans l’application installée. */
 .app-frame {
+  zoom: var(--ui-zoom, 1);
   flex: 1 0 auto;
   width: 100%;
   max-width: 1080px;
@@ -1565,7 +1610,7 @@ button:disabled {
 }
 
 .reels {
-  --reel-h: 64px;
+  --reel-h: 76px;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
@@ -1589,7 +1634,7 @@ button:disabled {
 }
 
 .reel__window {
-  width: 56px;
+  width: 64px;
   height: var(--reel-h);
   overflow: hidden;
   border: 1px solid var(--faint);
@@ -1610,7 +1655,7 @@ button:disabled {
   height: var(--reel-h);
   display: grid;
   place-items: center;
-  font: 400 58px/1 var(--display);
+  font: 400 70px/1 var(--display);
   color: var(--hi);
 }
 
@@ -1901,8 +1946,18 @@ button:disabled {
 }
 
 .victory__trophy {
+  width: 64px;
+  height: 64px;
   color: var(--ph);
   filter: drop-shadow(0 0 12px var(--glow));
+}
+
+.victory__head {
+  gap: 8px;
+}
+
+.victory .display--xl {
+  font-size: clamp(40px, 11vw, 64px);
 }
 
 .victory__reason {
@@ -1950,6 +2005,27 @@ button:disabled {
   background: var(--wash);
 }
 
+.timeline__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 12px;
+}
+
+.timeline__legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.timeline__legend .pixel-icon {
+  color: var(--ph);
+}
+
+.timeline__legend .pixel-icon.is-bad {
+  color: var(--bad);
+}
+
 .victory__words {
   margin: 0;
   font: 400 22px/1.2 var(--display);
@@ -1963,7 +2039,7 @@ button:disabled {
   position: relative;
   flex: 1;
   min-height: 380px;
-  margin: 0 -18px -20px;
+  margin: 0 calc(-1 * var(--pad-side) / var(--ui-zoom, 1)) calc(-1 * var(--pad-bottom) / var(--ui-zoom, 1));
   display: flex;
 }
 
@@ -2407,9 +2483,13 @@ button:disabled {
 /* Paysage sur téléphone : tout tient dans la hauteur, sans défiler           */
 
 @media (orientation: landscape) and (max-height: 560px) {
-  .crt__content {
-    padding: calc(env(safe-area-inset-top, 0px) + 10px) calc(env(safe-area-inset-right, 0px) + 20px)
-      calc(env(safe-area-inset-bottom, 0px) + 10px) calc(env(safe-area-inset-left, 0px) + 20px);
+  :root {
+    --bezel-top: 6px;
+    --bezel-side: 10px;
+    --bezel-bottom: 12px;
+    --pad-top: 10px;
+    --pad-side: 20px;
+    --pad-bottom: 10px;
   }
 
   .app-frame {
@@ -2568,7 +2648,6 @@ button:disabled {
   /* Passage du téléphone : nom à gauche, consigne et bouton à droite. */
   .handoff {
     min-height: 0;
-    margin: 0 -20px -10px;
   }
   .handoff__ui {
     display: grid;
@@ -2669,9 +2748,17 @@ button:disabled {
   }
   .victory__words {
     font-size: 18px;
+    line-height: 1.1;
   }
   .timeline__cell {
-    height: 26px;
+    height: 22px;
+  }
+  .victory .screen__main {
+    gap: 6px;
+  }
+  .victory .panel {
+    gap: 6px;
+    padding-block: 8px;
   }
 
   /* Menu : logo à gauche, commandes à droite sur deux colonnes. */
