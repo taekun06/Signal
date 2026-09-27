@@ -11,8 +11,8 @@ import {
   otherTeam,
   sameCode,
 } from "../game/rules";
-import { Button, Countdown, Panel, TeamTag, TypeText, ordinal } from "./kit";
-import { CodeDigits, GuessPicker, HoldToReveal, KeywordGrid, Notebook } from "./widgets";
+import { Button, Countdown, LETTERS, Panel, TeamTag, TypeText } from "./kit";
+import { CodeDigits, GuessPicker, KeywordGrid, Notebook } from "./widgets";
 
 export interface ScreenProps {
   state: GameState;
@@ -108,6 +108,19 @@ export function CluesScreen({ state, team, dispatch, toast }: ScreenProps) {
     }
   };
 
+  const toggle = () => {
+    play(visible ? "key" : "select");
+    vibrate(12);
+    setVisible(!visible);
+  };
+
+  // Sécurité : le code se masque si l’application passe en arrière-plan.
+  useEffect(() => {
+    const hide = () => document.hidden && setVisible(false);
+    document.addEventListener("visibilitychange", hide);
+    return () => document.removeEventListener("visibilitychange", hide);
+  }, []);
+
   // Sablier écoulé : les indices en cours partent tels quels.
   useEffect(() => {
     if (!state.clueDeadline) return;
@@ -128,39 +141,64 @@ export function CluesScreen({ state, team, dispatch, toast }: ScreenProps) {
           &gt; CRYPTEUR : <TypeText text={transmission.encryptor.toUpperCase()} speed={60} cursor />
         </p>
         <KeywordGrid words={words} highlight={visible ? transmission.code : []} />
-        <HoldToReveal code={transmission.code} words={words} onChange={setVisible} />
+        <p class="hint">
+          Fais deviner chaque mot à ton équipe avec un seul indice. Pas de mot-clé, pas d’indice déjà donné.
+        </p>
       </div>
       <div class="screen__main">
-        <Panel title={<>INDICES À TRANSMETTRE <Countdown deadline={state.clueDeadline} /></>}>
-          <p class="hint">Un indice par chiffre du code, dans l’ordre. Pas de mot-clé, pas d’indice déjà donné.</p>
-          <div class="clue-inputs">
-            {clues.map((clue, index) => (
-              <label class="clue-input" key={index}>
-                <span class="clue-input__ord">{ordinal(index)}</span>
-                <input
-                  id={`clue-${index}`}
-                  value={clue}
-                  maxLength={MAX_CLUE_LENGTH}
-                  autocomplete="off"
-                  autoCapitalize="characters"
-                  spellcheck={false}
-                  placeholder={visible ? `→ ${words[transmission.code[index] - 1]}` : "indice…"}
-                  onInput={(event) => {
-                    play("key");
-                    const next = [...clues];
-                    next[index] = (event.currentTarget as HTMLInputElement).value;
-                    setClues(next);
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key !== "Enter") return;
-                    event.preventDefault();
-                    const nextInput = document.getElementById(`clue-${index + 1}`);
-                    if (nextInput) nextInput.focus();
-                    else if (filled) send();
-                  }}
-                />
-              </label>
-            ))}
+        <Panel
+          title={
+            <>
+              TON CODE SECRET <Countdown deadline={state.clueDeadline} />
+            </>
+          }
+        >
+          <button type="button" class={`code-toggle${visible ? " is-open" : ""}`} onClick={toggle} aria-pressed={visible}>
+            <span class="code-toggle__digits">
+              {transmission.code.map((digit, index) => (
+                <b key={index}>{visible ? digit : "?"}</b>
+              ))}
+            </span>
+            <span class="code-toggle__label">{visible ? "◉ MASQUER" : "◎ TOUCHER POUR AFFICHER"}</span>
+          </button>
+          <div class="clue-rows">
+            {clues.map((clue, index) => {
+              const digit = transmission.code[index];
+              return (
+                <label class={`clue-row${visible ? " is-open" : ""}`} key={index}>
+                  <span class="clue-row__target" aria-hidden={!visible}>
+                    <b>{visible ? digit : "?"}</b>
+                    <span>{visible ? words[digit - 1] : "••••"}</span>
+                  </span>
+                  <span class="clue-row__field">
+                    <small>{visible ? `Ton indice pour ${words[digit - 1]}` : `Indice ${LETTERS[index]}`}</small>
+                    <input
+                      id={`clue-${index}`}
+                      value={clue}
+                      maxLength={MAX_CLUE_LENGTH}
+                      autocomplete="off"
+                      autoCapitalize="characters"
+                      spellcheck={false}
+                      enterKeyHint={index < 2 ? "next" : "send"}
+                      placeholder="…"
+                      onInput={(event) => {
+                        play("key");
+                        const next = [...clues];
+                        next[index] = (event.currentTarget as HTMLInputElement).value;
+                        setClues(next);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter") return;
+                        event.preventDefault();
+                        const nextInput = document.getElementById(`clue-${index + 1}`);
+                        if (nextInput) nextInput.focus();
+                        else if (filled) send();
+                      }}
+                    />
+                  </span>
+                </label>
+              );
+            })}
           </div>
         </Panel>
         <Button onClick={send} disabled={!filled} sound={null} class="btn--big">
@@ -302,7 +340,10 @@ export function RevealScreen({ state, onContinue }: { state: GameState; onContin
             <tbody>
               {(transmission.clues ?? []).map((clue, index) => (
                 <tr key={index}>
-                  <td class="reveal-table__clue">{clue}</td>
+                  <td class="reveal-table__clue">
+                    <i>{LETTERS[index]}</i>
+                    {clue}
+                  </td>
                   <td class="reveal-table__code">{transmission.code[index]}</td>
                   <td class={transmission.ownGuess?.[index] === transmission.code[index] ? "is-ok" : "is-bad"}>
                     {transmission.ownGuess?.[index]}

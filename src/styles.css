@@ -8,14 +8,15 @@
   --bad-glow: rgba(255, 75, 62, 0.6);
   --display: "VT323", "Courier New", monospace;
   --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --aberration: -1.2px 0 rgba(255, 40, 90, 0.55), 1.2px 0 rgba(40, 170, 255, 0.55);
   color-scheme: dark;
 }
 
 [data-tint="A"] {
   --ph: #ffb23f;
   --hi: #ffe3ae;
-  --dim: #c3842e;
-  --faint: #5e3c12;
+  --dim: #dba35c;
+  --faint: #6e4716;
   --bg: #120a03;
   --bg-hi: #2a1806;
   --glow: rgba(255, 170, 50, 0.55);
@@ -26,8 +27,8 @@
 [data-tint="B"] {
   --ph: #3dff7e;
   --hi: #c6ffd8;
-  --dim: #2cb35d;
-  --faint: #124f28;
+  --dim: #6fd996;
+  --faint: #17602f;
   --bg: #020e07;
   --bg-hi: #06240f;
   --glow: rgba(60, 255, 120, 0.5);
@@ -50,7 +51,7 @@ body,
 }
 
 body {
-  font: 14px/1.45 var(--mono);
+  font: 15px/1.5 var(--mono);
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
   -webkit-text-size-adjust: 100%;
@@ -94,10 +95,7 @@ button:disabled {
   overflow-y: auto;
   padding: calc(env(safe-area-inset-top, 0px) + 16px) calc(env(safe-area-inset-right, 0px) + 18px)
     calc(env(safe-area-inset-bottom, 0px) + 20px) calc(env(safe-area-inset-left, 0px) + 18px);
-  text-shadow:
-    -0.9px 0 rgba(255, 40, 90, 0.5),
-    0.9px 0 rgba(40, 170, 255, 0.5),
-    0 0 7px var(--glow);
+  text-shadow: 0 0 6px var(--glow);
   animation: flicker 0.16s steps(2) infinite;
   scrollbar-width: thin;
   scrollbar-color: var(--faint) transparent;
@@ -115,14 +113,14 @@ button:disabled {
 .crt__noise {
   width: 100%;
   height: 100%;
-  opacity: 0.075;
+  opacity: 0.055;
   image-rendering: pixelated;
   mix-blend-mode: screen;
 }
 
 .crt__scanlines {
   background:
-    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.32) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.24) 0 1px, transparent 1px 3px),
     repeating-linear-gradient(90deg, rgba(255, 0, 0, 0.03) 0 1px, rgba(0, 255, 0, 0.02) 1px 2px, rgba(0, 0, 255, 0.03) 2px 3px);
 }
 
@@ -145,7 +143,7 @@ button:disabled {
 
 @keyframes flicker {
   0% {
-    opacity: 0.975;
+    opacity: 0.988;
   }
   100% {
     opacity: 1;
@@ -311,11 +309,12 @@ button:disabled {
 /* Typographie                                                               */
 
 .display {
-  font: 400 clamp(34px, 9vw, 52px) / 1 var(--display);
+  font: 400 clamp(36px, 10vw, 56px) / 1 var(--display);
   color: var(--hi);
   margin: 0;
   letter-spacing: 0.03em;
   text-wrap: balance;
+  text-shadow: var(--aberration), 0 0 14px var(--glow);
 }
 
 .display--xl {
@@ -329,9 +328,10 @@ button:disabled {
 
 .prompt {
   margin: 0;
-  font: 400 26px/1.05 var(--display);
+  font: 400 28px/1.05 var(--display);
   color: var(--hi);
   letter-spacing: 0.04em;
+  text-shadow: var(--aberration), 0 0 10px var(--glow);
 }
 
 .eyebrow {
@@ -351,8 +351,9 @@ button:disabled {
 .hint {
   margin: 0;
   color: var(--dim);
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: 13px;
+  line-height: 1.55;
+  text-shadow: none;
 }
 
 .cursor {
@@ -585,11 +586,21 @@ button:disabled {
 /* Panneaux                                                                  */
 
 .panel {
-  border: 1px solid var(--faint);
-  padding: 12px;
+  position: relative;
+  padding: 14px;
   display: grid;
-  gap: 10px;
-  background: linear-gradient(180deg, var(--wash), transparent 60%);
+  gap: 12px;
+  border: 1px solid color-mix(in srgb, var(--faint) 70%, transparent);
+  background:
+    linear-gradient(var(--ph), var(--ph)) top left / 14px 2px no-repeat,
+    linear-gradient(var(--ph), var(--ph)) top left / 2px 14px no-repeat,
+    linear-gradient(var(--ph), var(--ph)) top right / 14px 2px no-repeat,
+    linear-gradient(var(--ph), var(--ph)) top right / 2px 14px no-repeat,
+    linear-gradient(var(--ph), var(--ph)) bottom left / 14px 2px no-repeat,
+    linear-gradient(var(--ph), var(--ph)) bottom left / 2px 14px no-repeat,
+    linear-gradient(var(--ph), var(--ph)) bottom right / 14px 2px no-repeat,
+    linear-gradient(var(--ph), var(--ph)) bottom right / 2px 14px no-repeat,
+    linear-gradient(180deg, var(--wash), transparent 70%);
 }
 
 .panel__title {
@@ -598,10 +609,10 @@ button:disabled {
   justify-content: space-between;
   align-items: baseline;
   gap: 10px;
-  font: 400 19px/1 var(--display);
-  letter-spacing: 0.1em;
+  font: 400 21px/1 var(--display);
+  letter-spacing: 0.12em;
   color: var(--hi);
-  padding-bottom: 8px;
+  padding-bottom: 10px;
   border-bottom: 1px dashed var(--faint);
 }
 
@@ -618,27 +629,35 @@ button:disabled {
 }
 
 .keywords li {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
+  position: relative;
+  display: grid;
+  gap: 4px;
   min-width: 0;
-  padding: 8px 9px 6px;
+  padding: 8px 10px 9px;
   border: 1px solid var(--faint);
+  background: linear-gradient(180deg, var(--wash), transparent);
   transition:
-    background 0.12s,
-    color 0.12s;
+    background 0.15s,
+    box-shadow 0.15s;
 }
 
 .keywords__num {
-  font: 400 20px/1 var(--display);
-  color: var(--dim);
+  justify-self: start;
+  min-width: 22px;
+  padding: 2px 5px 0;
+  font: 400 18px/1 var(--display);
+  text-align: center;
+  color: var(--bg);
+  background: var(--dim);
+  text-shadow: none;
 }
 
 .keywords__word {
-  font: 400 clamp(20px, 5.6vw, 27px) / 1 var(--display);
+  font: 400 clamp(24px, 6.8vw, 32px) / 1 var(--display);
   color: var(--hi);
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   overflow-wrap: anywhere;
+  text-shadow: var(--aberration), 0 0 10px var(--glow);
 }
 
 .keywords li.is-lit {
@@ -652,73 +671,140 @@ button:disabled {
   text-shadow: none;
 }
 
-/* ------------------------------------------------------------------------ */
-/* Coffre du code secret                                                     */
+.keywords li.is-lit .keywords__num {
+  background: var(--bg);
+  color: var(--ph);
+}
 
-.vault {
-  display: grid;
-  gap: 8px;
-  padding: 12px 10px 10px;
+/* ------------------------------------------------------------------------ */
+/* Code secret du crypteur                                                   */
+
+.code-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
   border: 1px dashed var(--ph);
   background: repeating-linear-gradient(-45deg, transparent 0 8px, var(--wash) 8px 16px);
-  touch-action: none;
+  touch-action: manipulation;
   user-select: none;
-  -webkit-user-select: none;
-  -webkit-touch-callout: none;
 }
 
-.vault__cells {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
+.code-toggle__digits {
+  display: flex;
+  gap: 6px;
 }
 
-.vault__cell {
+.code-toggle__digits b {
+  width: 42px;
+  height: 50px;
   display: grid;
-  justify-items: center;
-  gap: 2px;
-  padding: 6px 2px 4px;
+  place-items: center;
   border: 1px solid var(--faint);
   background: var(--bg);
-}
-
-.vault__cell b {
-  font: 400 50px/0.9 var(--display);
+  font: 400 44px/1 var(--display);
   color: var(--dim);
 }
 
-.vault__cell small {
-  font-size: 10px;
+.code-toggle__label {
+  font: 400 18px/1.1 var(--display);
   letter-spacing: 0.1em;
-  color: var(--dim);
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  color: var(--hi);
+  text-align: right;
 }
 
-.vault__hint {
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  color: var(--dim);
-}
-
-.vault.is-open {
+.code-toggle.is-open {
   border-style: solid;
   background: var(--wash);
 }
 
-.vault.is-open .vault__cell {
+.code-toggle.is-open .code-toggle__digits b {
   border-color: var(--ph);
+  color: var(--hi);
+  text-shadow: var(--aberration), 0 0 14px var(--ph);
 }
 
-.vault.is-open .vault__cell b {
-  color: var(--hi);
-  text-shadow: 0 0 14px var(--ph);
+/* Une ligne par indice : le mot à faire deviner, puis le champ. */
+.clue-rows {
+  display: grid;
+  gap: 10px;
 }
 
-.vault.is-open .vault__cell small {
+.clue-row {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr);
+  gap: 10px;
+  align-items: stretch;
+}
+
+.clue-row__target {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 2px;
+  padding: 6px 4px;
+  border: 1px solid var(--faint);
+  color: var(--faint);
+  text-align: center;
+}
+
+.clue-row__target b {
+  font: 400 34px/0.9 var(--display);
+}
+
+.clue-row__target span {
+  font: 400 15px/1 var(--display);
+  letter-spacing: 0.04em;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.clue-row.is-open .clue-row__target {
+  border-color: var(--ph);
+  background: var(--ph);
+  color: var(--bg);
+  text-shadow: none;
+  box-shadow: 0 0 14px var(--glow);
+}
+
+.clue-row__field {
+  display: grid;
+  gap: 2px;
+  align-content: end;
+  min-width: 0;
+}
+
+.clue-row__field small {
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--dim);
+  text-shadow: none;
+}
+
+.clue-row__field input {
+  width: 100%;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid var(--ph);
+  border-radius: 0;
+  padding: 4px 4px 2px;
+  font: 400 32px/1 var(--display);
   color: var(--hi);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  caret-color: var(--ph);
+  outline: none;
+}
+
+.clue-row__field input::placeholder {
+  color: var(--faint);
+}
+
+.clue-row__field input:focus {
+  background: var(--wash);
 }
 
 /* ------------------------------------------------------------------------ */
@@ -790,38 +876,49 @@ button:disabled {
 
 .picker__row {
   display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) auto;
+  grid-template-columns: 30px minmax(0, 1fr);
+  grid-template-areas:
+    "ord clue"
+    "digits digits";
   align-items: center;
-  gap: 8px;
-  padding: 6px 0;
+  gap: 8px 10px;
+  padding: 8px 0 10px;
   border-bottom: 1px dashed var(--faint);
 }
 
 .picker__ord {
-  font-size: 11px;
+  grid-area: ord;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--dim);
+  font: 400 22px/1 var(--display);
   color: var(--dim);
-  letter-spacing: 0.08em;
 }
 
 .picker__clue {
-  font: 400 clamp(24px, 7vw, 32px) / 1 var(--display);
+  grid-area: clue;
+  font: 400 clamp(26px, 7.5vw, 34px) / 1 var(--display);
   color: var(--hi);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   overflow-wrap: anywhere;
+  text-shadow: var(--aberration), 0 0 10px var(--glow);
 }
 
 .picker__digits {
-  display: flex;
-  gap: 5px;
+  grid-area: digits;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
 }
 
 .picker__digits button {
-  width: 38px;
-  height: 40px;
+  height: 44px;
   border: 1px solid var(--faint);
   background: transparent;
-  font: 400 26px/1 var(--display);
+  font: 400 28px/1 var(--display);
   touch-action: manipulation;
 }
 
@@ -1017,6 +1114,12 @@ button:disabled {
   color: var(--hi);
   text-transform: uppercase;
   overflow-wrap: anywhere;
+}
+
+.reveal-table__clue i {
+  font-style: normal;
+  color: var(--dim);
+  margin-right: 8px;
 }
 
 .reveal-table__code {

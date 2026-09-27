@@ -1,4 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
+import { enterFullscreen, keepScreenOn, promptInstall, toggleFullscreen, useDevice } from "../fx/device";
 import { play, setSoundEnabled, soundEnabled, unlockAudio } from "../fx/feedback";
 import { type TeamId, MIN_PLAYERS, RuleError } from "../game/rules";
 import { WORDS } from "../game/words";
@@ -57,6 +58,8 @@ function Boot({ onDone }: { onDone: () => void }) {
   }, []);
   const start = () => {
     unlockAudio();
+    void enterFullscreen();
+    void keepScreenOn();
     play("boot");
     onDone();
   };
@@ -80,6 +83,7 @@ function Boot({ onDone }: { onDone: () => void }) {
 function Menu({ onNew, onResume, onRules }: { onNew: () => void; onResume: (save: LocalSave) => void; onRules: () => void }) {
   const [saved, setSaved] = useState(() => loadLocalGame());
   const [sound, setSound] = useState(soundEnabled());
+  const device = useDevice();
   const inProgress = saved && saved.state.phase !== "over";
   return (
     <div class="screen screen--center menu">
@@ -114,6 +118,17 @@ function Menu({ onNew, onResume, onRules }: { onNew: () => void; onResume: (save
         <Button variant="ghost" onClick={onRules}>
           ▶ RÈGLES
         </Button>
+        {device.canInstall && (
+          <Button variant="ghost" onClick={() => void promptInstall()}>
+            ▶ INSTALLER L’APPLICATION
+            <small>Icône sur l’écran d’accueil, plein écran, jouable hors ligne</small>
+          </Button>
+        )}
+        {device.canFullscreen && (
+          <Button variant="ghost" onClick={() => void toggleFullscreen()}>
+            ▶ PLEIN ÉCRAN : {device.fullscreen ? "ACTIVÉ" : "DÉSACTIVÉ"}
+          </Button>
+        )}
         <Button
           variant="ghost"
           onClick={() => {

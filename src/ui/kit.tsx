@@ -222,6 +222,5 @@ export function Panel({ title, children, class: className }: { title?: Component
   );
 }
 
-export function ordinal(index: number): string {
-  return index === 0 ? "1ER" : `${index + 1}E`;
-}
+/** Les indices sont repérés par des lettres, les mots-clés par des chiffres. */
+export const LETTERS = ["A", "B", "C"] as const;
