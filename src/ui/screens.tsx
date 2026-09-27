@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "preact/hooks";
-import { glitch, play, vibrate } from "../fx/feedback";
+import { PHOSPHOR, runOscilloscope } from "../fx/canvasFx";
+import { play, scramble, vibrate } from "../fx/feedback";
 import {
   type Action,
   type GameState,
@@ -7,12 +8,14 @@ import {
   MAX_CLUE_LENGTH,
   RuleError,
   currentRound,
+  encryptorFor,
   interceptionAllowed,
   otherTeam,
   sameCode,
 } from "../game/rules";
-import { Button, Countdown, LETTERS, Panel, TeamTag, TypeText } from "./kit";
-import { CodeDigits, GuessPicker, KeywordGrid, Notebook } from "./widgets";
+import { PixelIcon } from "./icons";
+import { Button, Countdown, LETTERS, Panel, TeamTag, TypeText, reducedMotion, teamMark } from "./kit";
+import { CodeDigits, GuessPicker, KeywordGrid, MechanicalCode, Notebook } from "./widgets";
 
 export interface ScreenProps {
   state: GameState;
@@ -43,48 +46,67 @@ const teamName = (state: GameState, team: TeamId) => state.teams[team].name.toUp
 export function HandoffScreen({ state, team, onReady }: { state: GameState; team: TeamId; onReady: () => void }) {
   const round = currentRound(state);
   const name = teamName(state, team);
-  let title = `ÉQUIPE ${name}`;
-  let lines: string[];
-  let cta = `PRÊT · ÉQUIPE ${name}`;
+  const other = teamName(state, otherTeam(team));
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  // Tout l’écran devient celui d’un oscilloscope : le signal part vers l’autre main.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    canvas.width = Math.max(1, Math.round(canvas.offsetWidth * dpr));
+    canvas.height = Math.max(1, Math.round(canvas.offsetHeight * dpr));
+    return runOscilloscope(canvas, PHOSPHOR[team], 0.3);
+  }, [team]);
+
+  let caption = "DONNE LE TÉLÉPHONE À L’ÉQUIPE";
+  let who = name;
+  let sub: string;
+  let warn: string;
+  let cta = `PRÊT · ${name}`;
   if (state.phase === "clues") {
-    const encryptor = round.transmissions[team].encryptor;
-    title = "TRANSMISSION CHIFFRÉE";
-    lines = [
-      `Passe le téléphone à ${encryptor.toUpperCase()}, crypteur de l’équipe ${name}.`,
-      "Les autres joueurs détournent le regard.",
-    ];
-    cta = `JE SUIS ${encryptor.toUpperCase()}`;
+    const encryptor = round.transmissions[team].encryptor.toUpperCase();
+    caption = "DONNE LE TÉLÉPHONE À";
+    who = encryptor;
+    sub = `crypteur de l’équipe ${teamMark(team)} ${name}`;
+    warn = "Tous les autres détournent le regard.";
+    cta = `JE SUIS ${encryptor}`;
   } else if (state.phase === "decode" && team === state.active) {
-    lines = [
-      `Équipe ${name} : décodez votre propre signal.`,
-      `${round.transmissions[team].encryptor} a chiffré ce message et reste silencieux.`,
-    ];
+    sub = "décodez votre propre signal";
+    warn = `${round.transmissions[team].encryptor} a chiffré ce message et reste silencieux.`;
   } else if (state.phase === "decode") {
-    lines = [`Équipe ${name} : interceptez le signal de l’équipe ${teamName(state, otherTeam(team))}.`];
+    sub = `interceptez le signal de l’équipe ${other}`;
+    warn = "Le carnet vous montre leurs anciens indices.";
   } else {
-    lines = [`Équipe ${name} : retrouvez les quatre mots de l’équipe ${teamName(state, otherTeam(team))}.`];
+    sub = `retrouvez les quatre mots de l’équipe ${other}`;
+    warn = "Dernière chance de départager les équipes.";
   }
 
   return (
-    <div class="screen screen--center handoff">
-      <div class="handoff__signal" aria-hidden="true">
-        <span />
-        <span />
-        <span />
-      </div>
-      <p class="eyebrow">MANCHE {String(round.number).padStart(2, "0")} · ÉCRAN VERROUILLÉ</p>
-      <h1 class="display">
-        <TypeText text={title} speed={45} />
-      </h1>
-      {lines.map((line, index) => (
-        <p class="lead" key={index}>
-          {line}
+    <div class="screen handoff">
+      <canvas class="handoff__trace" ref={canvasRef} aria-hidden="true" />
+      <span class="handoff__grat" aria-hidden="true" />
+      <div class="handoff__ui">
+        <div class="handoff__read" aria-hidden="true">
+          <span>CH1 · 2 V/DIV</span>
+          <span class="handoff__live">● TRANSMISSION</span>
+          <span>5 ms/DIV</span>
+        </div>
+        <div class="handoff__who">
+          <span class="eyebrow">{caption}</span>
+          <h1 class="handoff__name">
+            <TypeText text={who} speed={70} />
+          </h1>
+          <span class="handoff__sub">{sub}</span>
+        </div>
+        <p class="handoff__warn">
+          <PixelIcon name="eye" size={18} />
+          {warn}
         </p>
-      ))}
-      <Button onClick={onReady} class="btn--big" sound="send">
-        {cta}
-      </Button>
+        <Button onClick={onReady} class="btn--big" sound="send">
+          {cta} ▶
+        </Button>
+      </div>
     </div>
   );
 }
@@ -220,6 +242,7 @@ export function DecodeScreen({ state, team, dispatch, toast }: ScreenProps) {
   const [guess, setGuess] = useState<(number | null)[]>([null, null, null]);
   const [showNotebook, setShowNotebook] = useState(!own);
   const complete = guess.every((digit) => digit !== null);
+  const pending = (transmission.clues ?? []).map((clue, index) => ({ clue, position: guess[index] }));
 
   const lock = () => {
     if (attempt(() => dispatch({ type: "submitGuess", team, guess: guess as number[], round: round.number, active }), toast)) {
@@ -249,12 +272,14 @@ export function DecodeScreen({ state, team, dispatch, toast }: ScreenProps) {
                 {showNotebook ? "▾ MASQUER" : "▸ AFFICHER"} NOS INDICES PRÉCÉDENTS
               </button>
             )}
-            {showNotebook && round.number > 1 && <Notebook state={state} team={team} showWords compact />}
+            {showNotebook && round.number > 1 && <Notebook state={state} team={team} showWords compact pending={pending} />}
           </>
         ) : (
           <>
-            <p class="hint">Le carnet range sous chaque position les indices déjà révélés de l’équipe {teamName(state, active)}.</p>
-            <Notebook state={state} team={active} />
+            <p class="hint">
+              Chaque colonne cache un mot de l’équipe {teamName(state, active)}. Vos choix s’y placent en direct.
+            </p>
+            <Notebook state={state} team={active} pending={pending} />
           </>
         )}
       </div>
@@ -275,9 +300,10 @@ export function DecodeScreen({ state, team, dispatch, toast }: ScreenProps) {
 }
 
 // ---------------------------------------------------------------------------
-// Révélation publique d’une transmission
+// Révélation publique d’une transmission : le code se cale au compteur, puis
+// le verdict de l’équipe, puis celui des adversaires.
 
-export function RevealScreen({ state, onContinue }: { state: GameState; onContinue: () => void }) {
+export function RevealScreen({ state, onContinue, continueLabel }: { state: GameState; onContinue: () => void; continueLabel: string }) {
   const round = currentRound(state);
   const active = state.active;
   const opponent = otherTeam(active);
@@ -285,81 +311,184 @@ export function RevealScreen({ state, onContinue }: { state: GameState; onContin
   const withIntercept = interceptionAllowed(state);
   const understood = sameCode(transmission.ownGuess, transmission.code);
   const intercepted = withIntercept && sameCode(transmission.interceptGuess, transmission.code);
+  const own = state.teams[active];
+  const opp = state.teams[opponent];
+  const [stage, setStage] = useState(reducedMotion() ? 3 : 0);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      if (intercepted || !understood) {
-        glitch();
-        play(intercepted ? "intercept" : "fail");
-        vibrate([80, 40, 80, 40, 160]);
-      } else {
+    if (reducedMotion()) return;
+    const timers: number[] = [];
+    const at = (ms: number, fn: () => void) => timers.push(window.setTimeout(fn, ms));
+    at(1900, () => {
+      setStage(1);
+      if (understood) {
         play("success");
         vibrate(60);
+      } else {
+        play("fail");
+        vibrate([60, 40, 140]);
       }
-    }, 900);
-    return () => clearTimeout(timer);
+    });
+    if (intercepted) {
+      at(2700, () => scramble("INTERCEPTÉ !"));
+      at(4200, () => setStage(2));
+      at(4700, () => {
+        setStage(3);
+        play("drop");
+        vibrate([20, 30, 90]);
+      });
+    } else {
+      at(2700, () => {
+        setStage(3);
+        if (withIntercept) play("key");
+      });
+    }
+    return () => timers.forEach(clearTimeout);
   }, []);
 
   return (
-    <div class="screen screen--split">
+    <div class="screen screen--split reveal">
       <div class="screen__side">
-        <p class="prompt">&gt; RÉVÉLATION · <TeamTag team={active} state={state} /></p>
-        <div class="reveal-code">
-          <span class="eyebrow">CODE RÉEL</span>
-          <CodeDigits code={transmission.code} />
-        </div>
-        <div class="verdicts">
-          <p class={`verdict ${understood ? "is-ok" : "is-bad"}`}>
-            <TypeText
-              delay={700}
-              text={understood ? `DÉCODAGE RÉUSSI · ÉQUIPE ${teamName(state, active)}` : `MALENTENDU · ÉQUIPE ${teamName(state, active)} +1 MALENTENDU`}
-            />
-          </p>
-          {withIntercept && (
-            <p class={`verdict ${intercepted ? "is-bad" : "is-ok"}`} data-tint={opponent}>
-              <TypeText
-                delay={1300}
-                text={intercepted ? `INTERCEPTION ! ÉQUIPE ${teamName(state, opponent)} +1 INTERCEPTION` : `INTERCEPTION RATÉE · ÉQUIPE ${teamName(state, opponent)}`}
-              />
-            </p>
-          )}
-          {!withIntercept && <p class="hint">Pas d’interception en première manche.</p>}
+        <p class="prompt">
+          &gt; RÉVÉLATION · SIGNAL <TeamTag team={active} state={state} />
+        </p>
+        <div class="reveal__code">
+          <span class="eyebrow">LE VRAI CODE ÉTAIT</span>
+          <MechanicalCode code={transmission.code} labels={transmission.clues ?? []} delay={250} />
         </div>
       </div>
       <div class="screen__main">
-        <Panel title="DÉTAIL">
-          <table class="reveal-table">
-            <thead>
-              <tr>
-                <th>INDICE</th>
-                <th>CODE</th>
-                <th data-tint={active}>{teamName(state, active).slice(0, 6)}</th>
-                {withIntercept && <th data-tint={opponent}>{teamName(state, opponent).slice(0, 6)}</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {(transmission.clues ?? []).map((clue, index) => (
-                <tr key={index}>
-                  <td class="reveal-table__clue">
-                    <i>{LETTERS[index]}</i>
-                    {clue}
-                  </td>
-                  <td class="reveal-table__code">{transmission.code[index]}</td>
-                  <td class={transmission.ownGuess?.[index] === transmission.code[index] ? "is-ok" : "is-bad"}>
-                    {transmission.ownGuess?.[index]}
-                  </td>
-                  {withIntercept && (
-                    <td class={transmission.interceptGuess?.[index] === transmission.code[index] ? "is-ok" : "is-bad"}>
-                      {transmission.interceptGuess?.[index]}
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Panel>
+        <section class={`verdict ${understood ? "is-ok" : "is-bad"}${stage >= 1 ? " is-in" : ""}`} data-tint={active}>
+          <header class="verdict__head">
+            {teamMark(active)} {teamName(state, active)} · DÉCODAGE DE SON PROPRE CODE
+          </header>
+          <div class="verdict__row">
+            <b class="verdict__big">
+              <PixelIcon name={understood ? "check" : "cross"} size={26} />
+              {understood ? "COMPRIS" : "MALENTENDU"}
+            </b>
+            {transmission.ownGuess && <CodeDigits code={transmission.ownGuess} compare={transmission.code} />}
+          </div>
+          <p class="verdict__sub">
+            {understood
+              ? "Pas de malentendu."
+              : `+1 malentendu pour ${teamName(state, active)} : ${own.miscommunications} sur 2.${own.miscommunications >= 2 ? " La défaite menace !" : ""}`}
+          </p>
+        </section>
+
+        {withIntercept ? (
+          <section class={`verdict ${intercepted ? "is-hit" : "is-miss"}${stage >= (intercepted ? 2 : 3) ? " is-in" : ""}`} data-tint={opponent}>
+            <header class="verdict__head">
+              <span>
+                {teamMark(opponent)} {teamName(state, opponent)} · TENTATIVE D’INTERCEPTION
+              </span>
+              {intercepted && <span class="verdict__plus">+1</span>}
+            </header>
+            <div class="verdict__row">
+              <b class="verdict__big">
+                <PixelIcon name={intercepted ? "target" : "cross"} size={26} />
+                {intercepted ? "INTERCEPTÉ !" : "RATÉ"}
+              </b>
+              {intercepted ? (
+                <span class={`token-slot${stage >= 3 ? " is-landed" : ""}`} aria-label="Jeton d’interception gagné">
+                  <i />
+                </span>
+              ) : (
+                transmission.interceptGuess && <CodeDigits code={transmission.interceptGuess} compare={transmission.code} />
+              )}
+            </div>
+            <p class="verdict__sub">
+              {intercepted
+                ? `${teamName(state, opponent)} : ${opp.interceptions} interception${opp.interceptions > 1 ? "s" : ""} sur 2.${opp.interceptions >= 2 ? " C’est la deuxième !" : " Encore une et c’est gagné."}`
+                : "Le code a tenu bon."}
+            </p>
+          </section>
+        ) : (
+          <p class={`verdict verdict--note${stage >= 1 ? " is-in" : ""}`}>Pas d’interception pendant la première manche.</p>
+        )}
+
         <Button onClick={onContinue} class="btn--big">
-          {active === "A" ? `SIGNAL SUIVANT : ${teamName(state, "B")} ▶` : "FIN DE LA MANCHE ▶"}
+          {continueLabel}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Bilan de fin de manche : où en sont les deux équipes, d’un coup d’œil.
+
+function teamStatus(interceptions: number, miscommunications: number): { text: string; bad: boolean }[] {
+  const lines: { text: string; bad: boolean }[] = [];
+  if (interceptions === 1) lines.push({ text: "Encore 1 interception pour gagner !", bad: false });
+  if (miscommunications === 1) lines.push({ text: "Danger : encore 1 malentendu et c’est perdu.", bad: true });
+  if (!lines.length) lines.push({ text: "Aucun jeton pour l’instant.", bad: false });
+  return lines;
+}
+
+export function SummaryScreen({ state, onContinue }: { state: GameState; onContinue: () => void }) {
+  const round = currentRound(state).number;
+  const next = round + 1;
+  return (
+    <div class="screen screen--split summary">
+      <div class="screen__side">
+        <span class="eyebrow">BILAN</span>
+        <h1 class="display">FIN DE LA MANCHE {round}</h1>
+        <div class="rounds" aria-label={`${round} manches jouées sur ${state.settings.maxRounds}`}>
+          {Array.from({ length: state.settings.maxRounds }, (_, i) => (
+            <i key={i} class={i < round ? "on" : ""} />
+          ))}
+        </div>
+        <p class="hint">
+          {round} manche{round > 1 ? "s" : ""} jouée{round > 1 ? "s" : ""} sur {state.settings.maxRounds} au maximum
+          {next === state.settings.maxRounds ? " · la prochaine est la dernière !" : "."}
+        </p>
+        <p class="summary__next">
+          Manche {next} · crypteurs :{" "}
+          {(["A", "B"] as TeamId[]).map((team, i) => (
+            <span key={team} data-tint={team} class="team-tag">
+              {i > 0 && " et "}
+              {teamMark(team)} {encryptorFor(state.teams[team].players, next).toUpperCase()}
+            </span>
+          ))}
+        </p>
+      </div>
+      <div class="screen__main">
+        {(["A", "B"] as TeamId[]).map((team) => {
+          const t = state.teams[team];
+          return (
+            <section class="summary__team" data-tint={team} key={team}>
+              <span class="summary__name">
+                {teamMark(team)} {t.name.toUpperCase()}
+              </span>
+              <span class="summary__row">
+                <PixelIcon name="target" size={18} />
+                INTERCEPTIONS
+                <span class="summary__pips">
+                  {[0, 1].map((i) => (
+                    <i key={i} class={i < t.interceptions ? "on" : ""} />
+                  ))}
+                </span>
+              </span>
+              <span class="summary__row summary__row--bad">
+                <PixelIcon name="cross" size={18} />
+                MALENTENDUS
+                <span class="summary__pips">
+                  {[0, 1].map((i) => (
+                    <i key={i} class={i < t.miscommunications ? "on" : ""} />
+                  ))}
+                </span>
+              </span>
+              {teamStatus(t.interceptions, t.miscommunications).map((line) => (
+                <p key={line.text} class={`summary__status${line.bad ? " is-bad" : ""}`}>
+                  {line.text}
+                </p>
+              ))}
+            </section>
+          );
+        })}
+        <Button onClick={onContinue} class="btn--big">
+          MANCHE {next} ▶
         </Button>
       </div>
     </div>
@@ -435,11 +564,12 @@ export function GameOverScreen({ state, onRematch, onMenu }: { state: GameState;
     }, 500);
     return () => clearTimeout(timer);
   }, []);
+  const rounds = state.rounds.filter((round) => round.transmissions.A.revealed || round.transmissions.B.revealed);
 
   return (
-    <div class="screen screen--split">
-      <div class="screen__side">
-        <p class="eyebrow">FIN DE TRANSMISSION · MANCHE {currentRound(state).number}</p>
+    <div class="screen screen--split victory">
+      <div class="screen__side victory__head">
+        {result.winner !== "draw" && <PixelIcon name="trophy" size={84} class="victory__trophy" />}
         <h1 class="display display--xl">
           {result.winner === "draw" ? (
             <TypeText text="ÉGALITÉ" speed={70} cursor />
@@ -447,28 +577,64 @@ export function GameOverScreen({ state, onRematch, onMenu }: { state: GameState;
             <>
               <TypeText text="VICTOIRE" speed={70} />
               <span class="winner" data-tint={result.winner}>
-                <TypeText text={teamName(state, result.winner)} delay={650} speed={70} cursor />
+                <TypeText text={`${teamMark(result.winner)} ${teamName(state, result.winner)}`} delay={650} speed={70} cursor />
               </span>
             </>
           )}
         </h1>
-        <p class="lead">{REASONS[result.reason]}</p>
+        <p class="victory__reason">
+          {REASONS[result.reason]} · manche {currentRound(state).number}
+        </p>
         {result.tiebreakScores && (
           <p class="hint">
             Mots retrouvés : {teamName(state, "A")} {result.tiebreakScores.A} · {teamName(state, "B")} {result.tiebreakScores.B}
           </p>
         )}
-        <div class="actions">
-          <Button onClick={onMenu} variant="ghost">MENU</Button>
-          <Button onClick={onRematch} class="btn--big">REVANCHE</Button>
-        </div>
       </div>
       <div class="screen__main">
-        {(["A", "B"] as TeamId[]).map((team) => (
-          <Panel key={team} title={<TeamTag team={team} state={state} />}>
-            <Notebook state={state} team={team} showWords compact />
-          </Panel>
-        ))}
+        <Panel title="LA PARTIE EN UN COUP D’ŒIL">
+          <div class="timeline" style={{ gridTemplateColumns: `minmax(0, 1.4fr) repeat(${rounds.length}, minmax(0, 1fr))` }}>
+            <span />
+            {rounds.map((round) => (
+              <span key={round.number} class="timeline__head">
+                M{round.number}
+              </span>
+            ))}
+            {(["A", "B"] as TeamId[]).map((team) => [
+              <span key={`${team}-name`} class="timeline__team" data-tint={team}>
+                {teamMark(team)} {teamName(state, team)}
+              </span>,
+              ...rounds.map((round) => {
+                const mine = round.transmissions[team];
+                const theirs = round.transmissions[otherTeam(team)];
+                const decoded = mine.revealed && sameCode(mine.ownGuess, mine.code);
+                const caught = theirs.revealed && round.number > 1 && sameCode(theirs.interceptGuess, theirs.code);
+                return (
+                  <span key={`${team}-${round.number}`} class={`timeline__cell${caught ? " is-caught" : ""}`} data-tint={team}>
+                    {mine.revealed && <PixelIcon name={decoded ? "check" : "cross"} size={14} class={decoded ? "" : "is-bad"} />}
+                    {caught && <PixelIcon name="target" size={14} />}
+                  </span>
+                );
+              }),
+            ])}
+          </div>
+          <p class="hint">Coche = code compris · croix rouge = malentendu · cible = interception réussie.</p>
+        </Panel>
+        <Panel title="LES MOTS SECRETS ÉTAIENT">
+          {(["A", "B"] as TeamId[]).map((team) => (
+            <p key={team} class="victory__words" data-tint={team}>
+              {teamMark(team)} {state.teams[team].words.join(" · ")}
+            </p>
+          ))}
+        </Panel>
+        <div class="actions">
+          <Button onClick={onMenu} variant="ghost">
+            MENU
+          </Button>
+          <Button onClick={onRematch} class="btn--big">
+            REVANCHE ▶
+          </Button>
+        </div>
       </div>
     </div>
   );

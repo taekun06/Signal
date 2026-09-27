@@ -1,6 +1,7 @@
+import { useEffect, useState } from "preact/hooks";
 import { play, vibrate } from "../fx/feedback";
 import { type Code, type GameState, type TeamId, notebook } from "../game/rules";
-import { LETTERS, TypeText } from "./kit";
+import { LETTERS, TypeText, reducedMotion } from "./kit";
 
 // ---------------------------------------------------------------------------
 // Les quatre mots-clés d’une équipe.
@@ -26,30 +27,40 @@ export function Notebook({
   team,
   showWords = false,
   compact = false,
+  pending = [],
 }: {
   state: GameState;
   team: TeamId;
   showWords?: boolean;
   compact?: boolean;
+  /** Indices de la manche en cours, placés à titre d’essai dans une colonne. */
+  pending?: { clue: string; position: number | null }[];
 }) {
   const columns = notebook(state, team);
   const words = state.teams[team].words;
   return (
     <div class={`notebook${compact ? " notebook--compact" : ""}`} data-tint={team}>
       {columns.map((entries, index) => (
-        <div class="notebook__col" key={index}>
+        <div class={`notebook__col${pending.some((p) => p.position === index + 1) ? " is-target" : ""}`} key={index}>
           <div class="notebook__head">
             <b>{index + 1}</b>
             {showWords && <small>{words[index]}</small>}
           </div>
           <ul>
-            {entries.length === 0 && <li class="notebook__empty">—</li>}
+            {entries.length === 0 && !pending.some((p) => p.position === index + 1) && <li class="notebook__empty">—</li>}
             {entries.map((entry) => (
               <li key={`${entry.round}-${entry.clue}`}>
                 <sup>{entry.round}</sup>
                 {entry.clue}
               </li>
             ))}
+            {pending
+              .filter((p) => p.position === index + 1)
+              .map((p) => (
+                <li key={`pending-${p.clue}`} class="notebook__pending">
+                  + {p.clue} ?
+                </li>
+              ))}
           </ul>
         </div>
       ))}
@@ -115,5 +126,48 @@ export function CodeDigits({ code, compare }: { code: (number | null)[]; compare
         </b>
       ))}
     </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Code en compteur mécanique : chaque rouleau défile puis s’arrête sur son chiffre.
+
+const REEL_SPINS = 3;
+
+export function MechanicalCode({ code, labels, delay = 0 }: { code: Code; labels?: string[]; delay?: number }) {
+  const [started, setStarted] = useState(reducedMotion());
+  useEffect(() => {
+    if (reducedMotion()) return;
+    const timers = [window.setTimeout(() => setStarted(true), delay)];
+    code.forEach((_, index) => timers.push(window.setTimeout(() => play("reel"), delay + 700 + index * 350)));
+    return () => timers.forEach(clearTimeout);
+  }, []);
+  return (
+    <div class="reels">
+      {code.map((digit, index) => {
+        // Rouleau 1-2-3-4 répété ; on s’arrête sur la dernière occurrence du chiffre.
+        const strip = Array.from({ length: REEL_SPINS * 4 }, (_, i) => ((i + index) % 4) + 1);
+        const stop = strip.lastIndexOf(digit);
+        return (
+          <div class="reel" key={index}>
+            {labels && <i class="reel__label">INDICE {LETTERS[index]}</i>}
+            <div class="reel__window">
+              <div
+                class="reel__strip"
+                style={{
+                  transform: started ? `translateY(calc(${-stop} * var(--reel-h)))` : "translateY(0)",
+                  transitionDelay: `${index * 350}ms`,
+                }}
+              >
+                {strip.map((n, i) => (
+                  <span key={i}>{n}</span>
+                ))}
+              </div>
+            </div>
+            {labels && <span class="reel__clue">{labels[index]}</span>}
+          </div>
+        );
+      })}
+    </div>
   );
 }

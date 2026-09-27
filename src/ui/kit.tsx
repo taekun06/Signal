@@ -1,34 +1,52 @@
 import type { ComponentChildren, JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
+import { PHOSPHOR, runScramble } from "../fx/canvasFx";
+import { supportsWarp, useScreenShape } from "../fx/display";
 import { play, vibrate } from "../fx/feedback";
 import { type GameState, type TeamId, TEAM_IDS, currentRound } from "../game/rules";
+import { PixelIcon } from "./icons";
 
 export type Tint = TeamId;
 
-const reducedMotion = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+export const reducedMotion = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
 
 // ---------------------------------------------------------------------------
-// Cadre cathodique : couleur de phosphore, grain, balayage, brouillage.
+// Cadre cathodique : phosphore, grain, balayage, tube bombé, signal crypté.
+// Sur grand écran en paysage, le tube est posé dans la photo du moniteur.
 
-export function Crt({ tint, children }: { tint: Tint; children: ComponentChildren }) {
-  const [glitching, setGlitching] = useState(false);
-  const noiseRef = useRef<HTMLCanvasElement>(null);
+function ScrambleLayer({ tint }: { tint: Tint }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  const [active, setActive] = useState(false);
+  const tintRef = useRef(tint);
+  tintRef.current = tint;
 
   useEffect(() => {
-    let timer = 0;
-    const onGlitch = () => {
-      if (reducedMotion()) return;
-      setGlitching(false);
-      requestAnimationFrame(() => setGlitching(true));
-      clearTimeout(timer);
-      timer = window.setTimeout(() => setGlitching(false), 750);
+    let stop: (() => void) | null = null;
+    const onScramble = (event: Event) => {
+      const canvas = ref.current;
+      if (!canvas) return;
+      stop?.();
+      // Résolution basse (effet rétro), proportions de l’écran réel.
+      canvas.width = 190;
+      canvas.height = Math.max(60, Math.round((190 * canvas.offsetHeight) / Math.max(1, canvas.offsetWidth)));
+      setActive(true);
+      play("static");
+      stop = runScramble(canvas, (event as CustomEvent<string>).detail, PHOSPHOR[tintRef.current], 1500, () => setActive(false));
     };
-    window.addEventListener("crt-glitch", onGlitch);
+    window.addEventListener("crt-scramble", onScramble);
     return () => {
-      window.removeEventListener("crt-glitch", onGlitch);
-      clearTimeout(timer);
+      window.removeEventListener("crt-scramble", onScramble);
+      stop?.();
     };
   }, []);
+
+  return <canvas class={`crt__scramble${active ? " is-active" : ""}`} ref={ref} width={190} height={340} aria-hidden="true" />;
+}
+
+export function Crt({ tint, children }: { tint: Tint; children: ComponentChildren }) {
+  const noiseRef = useRef<HTMLCanvasElement>(null);
+  const [shape] = useScreenShape();
+  const curved = shape === "curved";
 
   // Grain animé : quelques images de bruit tirées en boucle.
   useEffect(() => {
@@ -58,20 +76,46 @@ export function Crt({ tint, children }: { tint: Tint; children: ComponentChildre
   }, []);
 
   return (
-    <div class={`crt${glitching ? " is-glitching" : ""}`} data-tint={tint}>
-      <div class="crt__content">{children}</div>
-      <canvas class="crt__noise" ref={noiseRef} aria-hidden="true" />
-      <div class="crt__scanlines" aria-hidden="true" />
-      <div class="crt__scanbar" aria-hidden="true" />
-      <div class="crt__vignette" aria-hidden="true" />
+    <div class="monitor" style={{ "--monitor-photo": `url("${new URL("crt-monitor.jpg", document.baseURI).href}")` }}>
+      <div class={`crt${curved ? " is-curved" : ""}${curved && supportsWarp ? " is-warped" : ""}`} data-tint={tint}>
+        <div class="crt__warp">
+          <div class="crt__content">{children}</div>
+        </div>
+        <canvas class="crt__noise" ref={noiseRef} aria-hidden="true" />
+        <div class="crt__scanlines" aria-hidden="true" />
+        <div class="crt__scanbar" aria-hidden="true" />
+        <div class="crt__vignette" aria-hidden="true" />
+        {curved && <div class="crt__glass" aria-hidden="true" />}
+        <ScrambleLayer tint={tint} />
+      </div>
+      <svg class="crt__defs" width="0" height="0" aria-hidden="true">
+        <filter
+          id="crt-barrel"
+          x="0"
+          y="0"
+          width="1"
+          height="1"
+          filterUnits="objectBoundingBox"
+          primitiveUnits="objectBoundingBox"
+          color-interpolation-filters="sRGB"
+        >
+          <feImage href={`${import.meta.env.BASE_URL}barrel-map.png`} x="0" y="0" width="1" height="1" preserveAspectRatio="none" result="map" />
+          <feDisplacementMap in="SourceGraphic" in2="map" scale="0.045" xChannelSelector="R" yChannelSelector="G" />
+        </filter>
+      </svg>
     </div>
   );
 }
 
-/** Rejoue l’effet « télé qui s’éteint puis se rallume » à chaque changement d’écran. */
-export function PowerCycle({ id, children }: { id: string; children: ComponentChildren }) {
+/**
+ * Changement d’écran façon vieux téléviseur : un trait blanc s’ouvre sur la
+ * nouvelle image. Avec `offOn`, l’ancienne image s’éteint d’abord en un point
+ * blanc qui s’estompe (utilisé quand on se passe le téléphone).
+ */
+export function PowerCycle({ id, offOn = false, children }: { id: string; offOn?: boolean; children: ComponentChildren }) {
   const first = useRef(true);
   const ref = useRef<HTMLDivElement>(null);
+  const skip = first.current;
   useEffect(() => {
     ref.current?.closest(".crt__content")?.scrollTo(0, 0);
     if (first.current) {
@@ -80,9 +124,11 @@ export function PowerCycle({ id, children }: { id: string; children: ComponentCh
     }
     play("power");
   }, [id]);
+  const mode = skip ? "none" : offOn ? "offon" : "on";
   return (
-    <div class="power" key={id} ref={ref}>
-      {children}
+    <div class={`power power--${mode}`} key={id} ref={ref}>
+      <div class="power__content">{children}</div>
+      {mode !== "none" && <span class="power__beam" aria-hidden="true" />}
     </div>
   );
 }
@@ -149,11 +195,11 @@ export function Button({ variant = "primary", sound = "select", onClick, class: 
 }
 
 // ---------------------------------------------------------------------------
-// En-tête de partie : manche et jetons des deux équipes.
+// Jetons, étiquettes d’équipe, en-tête et frise des étapes.
 
-function Tokens({ count, max = 2, bad = false }: { count: number; max?: number; bad?: boolean }) {
+export function Tokens({ count, max = 2, bad = false }: { count: number; max?: number; bad?: boolean }) {
   return (
-    <span class={`tokens${bad ? " tokens--bad" : ""}`}>
+    <span class={`tokens${bad ? " tokens--bad" : ""}`} aria-label={`${count} sur ${max}`}>
       {Array.from({ length: max }, (_, i) => (
         <i key={i} class={i < count ? "on" : ""} />
       ))}
@@ -161,40 +207,87 @@ function Tokens({ count, max = 2, bad = false }: { count: number; max?: number; 
   );
 }
 
+export const teamMark = (team: TeamId) => (team === "A" ? "◆" : "▲");
+
 export function TeamTag({ team, state }: { team: TeamId; state: GameState }) {
   return (
     <span class="team-tag" data-tint={team}>
-      {team === "A" ? "◆" : "▲"} {state.teams[team].name.toUpperCase()}
+      {teamMark(team)} {state.teams[team].name.toUpperCase()}
     </span>
   );
 }
 
-export function HeaderBar({ state, label }: { state: GameState; label?: string }) {
+export function HeaderBar({ state, label, focus }: { state: GameState; label?: string; focus?: TeamId }) {
   const round = currentRound(state).number;
   return (
     <header class="hud">
       <div class="hud__top">
         <span class="hud__title">SIGNAL//ZÉRO</span>
         <span class="hud__round">
-          {label ?? `MANCHE ${String(round).padStart(2, "0")}/${String(state.settings.maxRounds).padStart(2, "0")}`}
+          {label ?? `MANCHE ${String(round).padStart(2, "0")} / ${String(state.settings.maxRounds).padStart(2, "0")}`}
         </span>
       </div>
       <div class="hud__teams">
         {TEAM_IDS.map((team) => (
-          <div class="hud__team" data-tint={team} key={team}>
+          <div class={`hud__team${focus === team ? " is-focus" : ""}`} data-tint={team} key={team}>
             <span class="hud__name">
-              {team === "A" ? "◆" : "▲"} {state.teams[team].name.toUpperCase()}
+              {teamMark(team)} {state.teams[team].name.toUpperCase()}
             </span>
-            <span class="hud__stat" title="Interceptions réussies">
-              INT <Tokens count={state.teams[team].interceptions} />
+            <span class="hud__stat">
+              <PixelIcon name="target" size={12} />
+              INTERCEPTIONS
+              <Tokens count={state.teams[team].interceptions} />
             </span>
-            <span class="hud__stat" title="Malentendus">
-              MAL <Tokens count={state.teams[team].miscommunications} bad />
+            <span class="hud__stat hud__stat--bad">
+              <PixelIcon name="cross" size={12} />
+              MALENTENDUS
+              <Tokens count={state.teams[team].miscommunications} bad />
             </span>
           </div>
         ))}
       </div>
     </header>
+  );
+}
+
+type StepStatus = "done" | "now" | "todo";
+
+/** Les quatre temps d’une manche : indices des deux équipes, puis leurs deux signaux. */
+export function roundSteps(state: GameState): { label: string; team: TeamId; status: StepStatus }[] {
+  const round = currentRound(state);
+  const base: { label: string; team: TeamId }[] = [
+    { label: "INDICES", team: "A" },
+    { label: "INDICES", team: "B" },
+    { label: "SIGNAL", team: "A" },
+    { label: "SIGNAL", team: "B" },
+  ];
+  let done: boolean[];
+  let now = -1;
+  if (state.phase === "clues") {
+    done = [!!round.transmissions.A.clues, !!round.transmissions.B.clues, false, false];
+    now = done.indexOf(false);
+  } else if (state.phase === "decode" || state.phase === "reveal") {
+    const index = state.active === "A" ? 2 : 3;
+    done = base.map((_, i) => i < index || (i === index && state.phase === "reveal"));
+    now = index;
+  } else {
+    done = [true, true, true, true];
+  }
+  return base.map((step, i) => ({ ...step, status: i === now && !done[i] ? "now" : done[i] ? "done" : i === now ? "now" : "todo" }));
+}
+
+export function RoundSteps({ state }: { state: GameState }) {
+  return (
+    <ol class="steps" aria-label="Étapes de la manche">
+      {roundSteps(state).map((step, i) => (
+        <li key={i} class={`steps__item is-${step.status}`} data-tint={step.team} aria-current={step.status === "now" ? "step" : undefined}>
+          <span>{["①", "②", "③", "④"][i]} {step.label}</span>
+          <span>
+            {teamMark(step.team)} {state.teams[step.team].name.toUpperCase()}
+          </span>
+        </li>
+      ))}
+    </ol>
   );
 }
 
