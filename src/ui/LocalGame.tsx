@@ -35,7 +35,18 @@ export function LocalGame({ initial, onExit }: { initial: LocalSave; onExit: () 
   const continueReveal = () => dispatch({ type: "continue", round: round.number, active: state.active });
   const endsGame = state.phase === "reveal" && state.active === "B" && endOfRoundResult(state) !== null;
   const revealLabel =
-    state.active === "A" ? `SIGNAL SUIVANT : ${teamMark("B")} ${state.teams.B.name.toUpperCase()} ▶` : endsGame ? "RÉSULTAT FINAL ▶" : "BILAN DE LA MANCHE ▶";
+    state.active === "A" ? (
+      <>
+        SIGNAL SUIVANT ▶
+        <small>
+          au tour de l’équipe {teamMark("B")} {state.teams.B.name.toUpperCase()}
+        </small>
+      </>
+    ) : endsGame ? (
+      "RÉSULTAT FINAL ▶"
+    ) : (
+      "BILAN DE LA MANCHE ▶"
+    );
 
   // Écrans calés sur la hauteur du tube (sans défilement) : saisie des indices
   // avec le clavier en bas, et passage du téléphone en plein écran.
