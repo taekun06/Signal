@@ -324,6 +324,100 @@ button:disabled {
   }
 }
 
+/* Reflet de la pièce : il suit l’inclinaison du téléphone. */
+.crt__reflection {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background: radial-gradient(
+    38% 20% at calc(32% + var(--tilt-x, 0) * 26%) calc(14% + var(--tilt-y, 0) * 16%),
+    rgba(255, 244, 228, 0.07),
+    transparent 70%
+  );
+}
+
+/* Tension : plus la défaite approche, plus le tube souffre. */
+.crt.is-tense-1 .crt__noise {
+  opacity: 0.085;
+}
+
+.crt.is-tense-2 .crt__noise {
+  opacity: 0.11;
+}
+
+.crt.is-tense-2 .crt__content {
+  text-shadow:
+    0 0 6px var(--glow),
+    1.6px 0 rgba(255, 60, 60, 0.35),
+    -1.2px 0 rgba(60, 180, 255, 0.25);
+}
+
+.crt.is-tense-2 .crt__warp {
+  animation: tube-strain 3.1s steps(1) infinite;
+}
+
+.crt.is-tense-2.is-jitter .crt__warp {
+  animation: tube-jitter 0.26s steps(4) both;
+}
+
+@keyframes tube-strain {
+  0%,
+  91%,
+  100% {
+    transform: none;
+  }
+  92% {
+    transform: translateX(2px) skewX(-0.8deg);
+  }
+  94% {
+    transform: translateX(-1px);
+    filter: brightness(1.25);
+  }
+  96% {
+    transform: translateY(1px);
+  }
+}
+
+/* Au bord de la défaite, un halo rouge bat au rythme du cœur. */
+.crt.is-tense-2::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  box-shadow: inset 0 0 60px 10px rgba(255, 50, 30, 0.16);
+  opacity: 0;
+  animation: tube-heart 1.5s ease-out infinite;
+  z-index: 4;
+}
+
+@keyframes tube-heart {
+  0% {
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  20% {
+    opacity: 0.3;
+  }
+  28% {
+    opacity: 0.8;
+  }
+  60%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crt.is-tense-2 .crt__warp,
+  .crt.is-tense-2::after {
+    animation: none;
+  }
+}
+
 /* Signal crypté (interception) : canvas posé sur tout l’écran. */
 .crt__scramble {
   position: absolute;
@@ -1080,6 +1174,86 @@ button:disabled {
   border-color: var(--ph);
   color: var(--hi);
   text-shadow: var(--aberration), 0 0 14px var(--ph);
+}
+
+/* Le faisceau trace chaque chiffre de haut en bas, un trait lumineux en tête. */
+.code-toggle__digits b {
+  position: relative;
+  overflow: hidden;
+}
+
+.code-toggle.is-open .code-toggle__digits b {
+  animation: beam-draw 0.42s cubic-bezier(0.3, 0.7, 0.4, 1) both;
+  animation-delay: calc(var(--i, 0) * 90ms);
+}
+
+.code-toggle.is-open .code-toggle__digits b::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--hi);
+  box-shadow: 0 0 10px 2px var(--ph);
+  animation: beam-line 0.42s cubic-bezier(0.3, 0.7, 0.4, 1) both;
+  animation-delay: calc(var(--i, 0) * 90ms);
+}
+
+@keyframes beam-draw {
+  from {
+    clip-path: inset(0 0 100% 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes beam-line {
+  from {
+    top: 0;
+    opacity: 1;
+  }
+  90% {
+    top: calc(100% - 3px);
+    opacity: 1;
+  }
+  to {
+    top: calc(100% - 3px);
+    opacity: 0;
+  }
+}
+
+/* Rémanence : le chiffre masqué reste imprimé un instant dans le phosphore. */
+.code-toggle.is-decay .code-toggle__digits b {
+  color: var(--hi);
+  animation: phosphor-decay 1.4s cubic-bezier(0.2, 0.6, 0.4, 1) both;
+}
+
+@keyframes phosphor-decay {
+  0% {
+    text-shadow: 0 0 16px var(--ph);
+    opacity: 1;
+    filter: none;
+  }
+  40% {
+    opacity: 0.45;
+    filter: blur(0.6px);
+  }
+  100% {
+    text-shadow: 0 0 4px var(--ph);
+    opacity: 0;
+    filter: blur(1.5px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .code-toggle.is-open .code-toggle__digits b,
+  .code-toggle.is-open .code-toggle__digits b::after {
+    animation: none;
+  }
+  .code-toggle.is-open .code-toggle__digits b::after {
+    display: none;
+  }
 }
 
 /* Une ligne par indice : le mot à faire deviner, puis le champ. */
@@ -2807,4 +2981,96 @@ button:disabled {
   .app-frame.is-fit > .steps {
     display: none;
   }
+}
+
+/* ------------------------------------------------------------------------ */
+/* Émission maintenue : les indices partent en trame de données              */
+
+.transmit__clues {
+  display: grid;
+  gap: 10px;
+}
+
+.transmit__clue {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  font: 400 34px/1 var(--display);
+  color: var(--hi);
+}
+
+.transmit__clue i {
+  font-style: normal;
+  font-size: 22px;
+  text-align: center;
+  padding: 3px 0 1px;
+  border: 1px solid var(--ph);
+  color: var(--ph);
+}
+
+.transmit__clue span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+}
+
+.transmit__clue b {
+  font-weight: 400;
+  font-size: 0.62em;
+  color: var(--dim);
+  opacity: 0.8;
+  letter-spacing: 0.02em;
+  margin-right: 4px;
+}
+
+.transmit__dump.is-lost {
+  color: var(--bad);
+  text-shadow: 0 0 6px var(--bad-glow);
+}
+
+.transmit__dump {
+  flex: 1;
+  min-height: 7.5em;
+  margin: 0;
+  overflow: hidden;
+  font: 400 12.5px/1.4 var(--mono);
+  color: var(--dim);
+  white-space: pre;
+}
+
+.hold-btn {
+  position: relative;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.hold-btn__fill {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(90deg, var(--hi) 0 10px, transparent 10px 14px);
+  opacity: 0.75;
+  transform-origin: left;
+  transform: scaleX(var(--p, 0));
+}
+
+.hold-btn__label {
+  position: relative;
+}
+
+.transmit__back {
+  align-self: center;
+}
+
+.transmit__back:disabled {
+  visibility: hidden;
+}
+
+/* Indices reçus : la fin du mot grésille encore pendant le déchiffrement. */
+.decrypt__noise {
+  color: var(--dim);
+  opacity: 0.55;
 }

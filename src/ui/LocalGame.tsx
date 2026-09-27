@@ -2,7 +2,7 @@ import { useState } from "preact/hooks";
 import { toggleFullscreen, useDevice } from "../fx/device";
 import { useKeyboardKind, useScreenShape } from "../fx/display";
 import { setSoundEnabled, soundEnabled } from "../fx/feedback";
-import { type TeamId, currentRound, endOfRoundResult, pendingTeams } from "../game/rules";
+import { type TeamId, currentRound, endOfRoundResult, otherTeam, pendingTeams } from "../game/rules";
 import { type LocalSave, randomSeed, useLocalGame } from "../net/localGame";
 import { Button, Crt, HeaderBar, PowerCycle, RoundSteps, teamMark } from "./kit";
 import { CluesScreen, DecodeScreen, GameOverScreen, HandoffScreen, RevealScreen, SummaryScreen, TiebreakScreen } from "./screens";
@@ -30,6 +30,20 @@ export function LocalGame({ initial, onExit }: { initial: LocalSave; onExit: () 
   if (state.phase === "over" && state.result && state.result.winner !== "draw") tint = state.result.winner;
 
   const showSummary = summary === round.number && state.phase === "reveal";
+
+  // Tension vue par l’équipe à l’écran : au bord de la défaite (un malentendu
+  // de plus, ou une interception adverse de plus, et c’est perdu), ou fin de
+  // partie proche.
+  const me = state.teams[tint];
+  const them = state.teams[otherTeam(tint)];
+  const tension =
+    state.phase === "over"
+      ? 0
+      : me.miscommunications >= 1 || them.interceptions >= 1
+        ? 2
+        : round.number >= state.settings.maxRounds - 1 || me.interceptions >= 1
+          ? 1
+          : 0;
   const screenId = [state.phase, round.number, state.active, actor ?? "-", handoff ? "handoff" : "play", showSummary ? "summary" : ""].join(":");
 
   const continueReveal = () => dispatch({ type: "continue", round: round.number, active: state.active });
@@ -86,7 +100,7 @@ export function LocalGame({ initial, onExit }: { initial: LocalSave; onExit: () 
   }
 
   return (
-    <Crt tint={tint}>
+    <Crt tint={tint} tension={tension}>
       <div class={`app-frame app-frame--game${fit ? " is-fit" : ""}`}>
         <div class="hud-row">
           <HeaderBar state={state} label={state.phase === "tiebreak" ? "DÉPARTAGE" : undefined} focus={actor} />

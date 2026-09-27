@@ -1,5 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
-import { keepScreenOn, promptInstall, toggleFullscreen, useDevice } from "../fx/device";
+import { enableMotion, keepScreenOn, promptInstall, toggleFullscreen, useDevice } from "../fx/device";
 import { useScreenShape } from "../fx/display";
 import { play, setSoundEnabled, soundEnabled, unlockAudio } from "../fx/feedback";
 import { type TeamId, MIN_PLAYERS, RuleError } from "../game/rules";
@@ -63,6 +63,7 @@ function Boot({ onDone }: { onDone: () => void }) {
     // navigateurs laissent alors une bande claire en haut. L’application
     // installée s’ouvre déjà sans barre d’adresse.
     void keepScreenOn();
+    enableMotion();
     play("boot");
     onDone();
   };

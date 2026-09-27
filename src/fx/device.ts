@@ -105,3 +105,15 @@ export function registerServiceWorker(): void {
     navigator.serviceWorker.register("./sw.js").catch(() => undefined);
   });
 }
+
+/**
+ * iPhone : l’inclinaison du téléphone n’est lisible qu’après autorisation,
+ * demandée pendant un geste de l’utilisateur (le reflet du verre en dépend).
+ */
+export function enableMotion(): void {
+  const request = (window.DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<string> } | undefined)?.requestPermission;
+  if (typeof request !== "function") return;
+  request.call(window.DeviceOrientationEvent).catch(() => {
+    /* Refusé : le reflet reste fixe. */
+  });
+}

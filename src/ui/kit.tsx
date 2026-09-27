@@ -2,7 +2,7 @@ import type { ComponentChildren, JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { PHOSPHOR, runScramble } from "../fx/canvasFx";
 import { supportsWarp, useScreenShape } from "../fx/display";
-import { play, screenLoad, vibrate } from "../fx/feedback";
+import { play, screenLoad, setTension, vibrate } from "../fx/feedback";
 import { type GameState, type TeamId, TEAM_IDS, currentRound } from "../game/rules";
 import { PixelIcon } from "./icons";
 
@@ -76,10 +76,41 @@ function useUiZoom(ref: { current: HTMLElement | null }) {
   }, []);
 }
 
-export function Crt({ tint, children }: { tint: Tint; children: ComponentChildren }) {
+/**
+ * Reflet de la pièce sur le verre : il glisse quand on penche le téléphone,
+ * comme sur un vrai tube bombé.
+ */
+function useTiltReflection(ref: { current: HTMLElement | null }) {
+  useEffect(() => {
+    if (reducedMotion()) return;
+    let frame = 0;
+    const onTilt = (event: DeviceOrientationEvent) => {
+      if (event.gamma == null || event.beta == null) return;
+      const x = Math.max(-1, Math.min(1, event.gamma / 30));
+      const y = Math.max(-1, Math.min(1, (event.beta - 45) / 30));
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        ref.current?.style.setProperty("--tilt-x", x.toFixed(3));
+        ref.current?.style.setProperty("--tilt-y", y.toFixed(3));
+      });
+    };
+    window.addEventListener("deviceorientation", onTilt);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("deviceorientation", onTilt);
+    };
+  }, []);
+}
+
+/**
+ * `tension` : 0 calme, 1 la partie se resserre, 2 la défaite menace. Plus elle
+ * monte, plus le tube souffre (parasites, tremblements, ronflement, battement).
+ */
+export function Crt({ tint, tension = 0, children }: { tint: Tint; tension?: number; children: ComponentChildren }) {
   const noiseRef = useRef<HTMLCanvasElement>(null);
   const crtRef = useRef<HTMLDivElement>(null);
   useUiZoom(crtRef);
+  useTiltReflection(crtRef);
   const [shape] = useScreenShape();
   const curved = shape === "curved";
   const [warming, setWarming] = useState(() => !warmedUp && !reducedMotion());
@@ -93,7 +124,15 @@ export function Crt({ tint, children }: { tint: Tint; children: ComponentChildre
     return () => clearTimeout(id);
   }, []);
 
-  // Petits défauts analogiques : de temps en temps, l’image tremble un instant.
+  useEffect(() => {
+    setTension(tension);
+  }, [tension]);
+  useEffect(() => () => setTension(0), []);
+
+  // Petits défauts analogiques : de temps en temps, l’image tremble un instant,
+  // de plus en plus souvent quand la tension monte.
+  const tensionRef = useRef(tension);
+  tensionRef.current = tension;
   useEffect(() => {
     if (reducedMotion()) return;
     let timer = 0;
@@ -106,7 +145,7 @@ export function Crt({ tint, children }: { tint: Tint; children: ComponentChildre
             schedule();
           }, 260);
         },
-        7000 + Math.random() * 9000,
+        [7000 + Math.random() * 9000, 3500 + Math.random() * 4000, 1200 + Math.random() * 2200][tensionRef.current] ?? 7000,
       );
     };
     schedule();
@@ -155,7 +194,7 @@ export function Crt({ tint, children }: { tint: Tint; children: ComponentChildre
     >
       <div
         ref={crtRef}
-        class={`crt${curved ? " is-curved" : ""}${curved && supportsWarp ? " is-warped" : ""}${warming ? " is-warming" : ""}${jitter ? " is-jitter" : ""}`}
+        class={`crt${curved ? " is-curved" : ""}${curved && supportsWarp ? " is-warped" : ""}${warming ? " is-warming" : ""}${jitter ? " is-jitter" : ""}${tension ? ` is-tense-${tension}` : ""}`}
         data-tint={tint}
       >
         <div class="crt__warp">
@@ -167,6 +206,7 @@ export function Crt({ tint, children }: { tint: Tint; children: ComponentChildre
         <div class="crt__vignette" aria-hidden="true" />
         {breath > 0 && <div class="crt__breath" key={breath} aria-hidden="true" />}
         {curved && <div class="crt__glass" aria-hidden="true" />}
+        <div class="crt__reflection" aria-hidden="true" />
         <ScrambleLayer tint={tint} />
       </div>
       <span class="monitor__led" aria-hidden="true" />
@@ -269,6 +309,54 @@ export function TypeText({
     <span class="typetext" aria-label={text}>
       <span aria-hidden="true">{text.slice(0, count)}</span>
       {(!done || cursor) && <span class="cursor" aria-hidden="true">▌</span>}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Texte intercepté : chaque lettre défile en signes parasites puis se cale.
+
+const GLYPHS = "0123456789ABCDEF#%&@$<>/\\=+*";
+
+export function DecryptText({ text, delay = 0, step = 90 }: { text: string; delay?: number; step?: number }) {
+  const [now, setNow] = useState(() => (reducedMotion() ? Infinity : -1));
+  useEffect(() => {
+    if (reducedMotion()) return;
+    let raf = 0;
+    let t0 = 0;
+    let locked = 0;
+    const start = window.setTimeout(() => {
+      play("teletype");
+      t0 = performance.now();
+      const loop = (t: number) => {
+        const elapsed = t - t0;
+        setNow(elapsed);
+        const n = Math.min(text.length, Math.floor(elapsed / step));
+        if (n > locked) {
+          locked = n;
+          if (text[n - 1] && text[n - 1] !== " ") play("tick");
+        }
+        if (n < text.length) raf = requestAnimationFrame(loop);
+        else setNow(Infinity);
+      };
+      raf = requestAnimationFrame(loop);
+    }, delay);
+    return () => {
+      clearTimeout(start);
+      cancelAnimationFrame(raf);
+    };
+  }, [text, delay, step]);
+  const locked = now < 0 ? 0 : Math.min(text.length, Math.floor(now / step));
+  return (
+    <span class="decrypt" aria-label={text}>
+      <span aria-hidden="true">
+        {text.slice(0, locked)}
+        {now >= 0 && locked < text.length && (
+          <span class="decrypt__noise">
+            {[...text.slice(locked)].map((ch) => (ch === " " ? " " : GLYPHS[Math.floor(Math.random() * GLYPHS.length)])).join("")}
+          </span>
+        )}
+      </span>
     </span>
   );
 }

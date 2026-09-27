@@ -1,7 +1,7 @@
 import { useEffect, useState } from "preact/hooks";
 import { play, vibrate } from "../fx/feedback";
 import { type Code, type GameState, type TeamId, notebook } from "../game/rules";
-import { LETTERS, TypeText, reducedMotion } from "./kit";
+import { DecryptText, LETTERS, reducedMotion } from "./kit";
 
 // ---------------------------------------------------------------------------
 // Les quatre mots-clés d’une équipe.
@@ -94,7 +94,7 @@ export function GuessPicker({
       {clues.map((clue, row) => (
         <div class={`picker__row${value[row] ? " is-set" : ""}`} key={row}>
           <span class="picker__ord">{LETTERS[row]}</span>
-          <span class="picker__clue">{animate ? <TypeText text={clue} delay={250 + row * 650} speed={55} bell /> : clue}</span>
+          <span class="picker__clue">{animate ? <DecryptText text={clue} delay={250 + row * 750} step={85} /> : clue}</span>
           <span class="picker__digits" role="group" aria-label={`Position de l’indice ${clue}`}>
             {[1, 2, 3, 4].map((digit) => (
               <button

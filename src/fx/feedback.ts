@@ -19,7 +19,11 @@ type Sound =
   | "error"
   | "reel"
   | "drop"
-  | "static";
+  | "static"
+  | "modem"
+  | "cut"
+  | "beam"
+  | "fade";
 
 const STORAGE_KEY = "signal-zero:sound";
 
@@ -41,6 +45,7 @@ export function soundEnabled(): boolean {
 
 export function setSoundEnabled(value: boolean): void {
   enabled = value;
+  setTension(tensionLevel);
   try {
     localStorage.setItem(STORAGE_KEY, value ? "on" : "off");
   } catch {
@@ -193,10 +198,72 @@ export function play(sound: Sound): void {
       tone(110, 0, 0.16, "sine", 0.09, 60);
       noise(0, 0.04, 0.12, { type: "bandpass", freq: 2600, q: 2 });
       break;
+    case "modem":
+      // Poignée de main de modem : tonalité, dialogue en deux notes, puis le flot de données.
+      tone(2100, 0, 0.45, "sine", 0.035);
+      [1300, 2100, 1300].forEach((f, i) => tone(f, 0.5 + i * 0.14, 0.12, "sine", 0.035));
+      noise(0.95, 0.35, 0.05, { type: "bandpass", freq: 3000, q: 0.8 });
+      tone(980, 1.35, 0.3, "square", 0.022);
+      tone(1180, 1.35, 0.3, "square", 0.022);
+      noise(1.65, 1.1, 0.045, { type: "bandpass", freq: 1800, q: 0.8 });
+      break;
+    case "cut":
+      // Porteuse perdue : la transmission s’interrompt net.
+      tone(160, 0, 0.35, "sawtooth", 0.06, 70);
+      noise(0, 0.08, 0.1, { type: "highpass", freq: 1200 });
+      break;
+    case "beam":
+      // Le faisceau s’allume : sifflement très aigu et petit choc.
+      tone(15000, 0, 0.5, "sine", 0.005);
+      tone(90, 0, 0.1, "triangle", 0.06);
+      break;
+    case "fade":
+      // Le phosphore s’éteint doucement.
+      tone(2400, 0, 0.35, "sine", 0.012, 300);
+      break;
     case "static":
       noise(0, 1.1, 0.05, { type: "highpass", freq: 800 });
       tone(15600, 0, 1.1, "sine", 0.004);
       break;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Ambiance de tension : ronflement du transformateur qui grossit et, quand la
+// défaite menace, un battement sourd comme un cœur.
+
+let hum: { osc: OscillatorNode; gain: GainNode } | null = null;
+let heartbeat = 0;
+let tensionLevel = 0;
+
+/** 0 = calme, 1 = la partie se resserre, 2 = une équipe est au bord de la défaite. */
+export function setTension(level: number): void {
+  tensionLevel = level;
+  clearInterval(heartbeat);
+  heartbeat = 0;
+  if (!context) return;
+  if (!hum) {
+    const osc = context.createOscillator();
+    osc.type = "sawtooth";
+    osc.frequency.value = 50;
+    const filter = context.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.value = 180;
+    const gain = context.createGain();
+    gain.gain.value = 0;
+    osc.connect(filter).connect(gain).connect(context.destination);
+    osc.start();
+    hum = { osc, gain };
+  }
+  const t = context.currentTime;
+  hum.gain.gain.setTargetAtTime(enabled ? [0, 0.006, 0.014][level] ?? 0 : 0, t, 0.8);
+  hum.osc.frequency.setTargetAtTime(50 + level * 2, t, 0.8);
+  if (level >= 2) {
+    heartbeat = window.setInterval(() => {
+      if (!enabled || !context || document.hidden) return;
+      tone(58, 0, 0.14, "sine", 0.09, 40);
+      tone(52, 0.2, 0.18, "sine", 0.06, 36);
+    }, 1500);
   }
 }
 
