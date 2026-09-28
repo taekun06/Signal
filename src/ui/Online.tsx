@@ -207,6 +207,16 @@ function Lobby({ session, onLeave }: { session: OnlineSession; onLeave: () => vo
 
   const opponentTeam = otherTeam(save.team);
 
+  // Liaison qui ne vient pas : on explique quoi essayer au lieu d’attendre en silence.
+  const [slow, setSlow] = useState(false);
+  const searching = !host && (status === "connecting" || status === "lost");
+  useEffect(() => {
+    setSlow(false);
+    if (!searching) return;
+    const id = window.setTimeout(() => setSlow(true), 15000);
+    return () => clearTimeout(id);
+  }, [searching]);
+
   return (
     <div class="screen lobby">
       <Scope team={save.team} calm={status !== "online"} />
@@ -223,6 +233,12 @@ function Lobby({ session, onLeave }: { session: OnlineSession; onLeave: () => vo
           <i />
           {line}
         </p>
+        {slow && searching && (
+          <p class="hint lobby__slow" role="status">
+            La liaison tarde. Vérifie que l’autre téléphone affiche bien le canal {save.room} et garde son écran allumé. Si ça bloque
+            encore, mettez les deux téléphones sur le même Wi-Fi.
+          </p>
+        )}
       </div>
       {host && status !== "online" && (
         <div class="lobby__qr">

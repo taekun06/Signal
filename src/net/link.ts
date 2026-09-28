@@ -28,6 +28,25 @@ export interface Link {
 }
 
 const PREFIX = "signal-zero-v1-";
+
+// Serveurs qui aident les deux téléphones à se joindre. STUN suffit sur un
+// même Wi-Fi ; entre deux réseaux (4G, box qui isole les appareils), il faut
+// un relais TURN. Les relais par défaut de PeerJS (eu-0/us-0.turn.peerjs.com)
+// n’existent plus : on utilise le relais public et gratuit « Open Relay » de
+// Metered, sur les ports web pour passer les réseaux filtrés.
+const ICE_SERVERS: RTCIceServer[] = [
+  { urls: ["stun:stun.l.google.com:19302", "stun:stun.cloudflare.com:3478"] },
+  {
+    urls: [
+      "turn:openrelay.metered.ca:80",
+      "turn:openrelay.metered.ca:443",
+      "turn:openrelay.metered.ca:443?transport=tcp",
+      "turns:openrelay.metered.ca:443?transport=tcp",
+    ],
+    username: "openrelayproject",
+    credential: "openrelayproject",
+  },
+];
 // Lettres sans ambiguïté à l’oral comme à l’écran (pas de I, O, 0, 1).
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ";
 
@@ -116,7 +135,8 @@ function openPeer(role: "host" | "guest", room: string, emit: (event: LinkEvent)
   const start = async () => {
     const { Peer } = await import("peerjs");
     if (closed) return;
-    peer = role === "host" ? new Peer(PREFIX + room, { ...server, debug: 0 }) : new Peer({ ...server, debug: 0 });
+    const options: PeerOptions = { ...server, config: { iceServers: ICE_SERVERS }, debug: 0 };
+    peer = role === "host" ? new Peer(PREFIX + room, options) : new Peer(options);
     peer.on("open", () => {
       if (role === "host") emit({ type: "ready" });
       else connect();
