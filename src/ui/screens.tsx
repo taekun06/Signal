@@ -2,7 +2,7 @@ import type { ComponentChildren } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { PHOSPHOR, runOscilloscope } from "../fx/canvasFx";
 import { useGuide, useImmersion, useKeyboardKind } from "../fx/display";
-import { morse, play, vibrate } from "../fx/feedback";
+import { callSign, morse, play, vibrate } from "../fx/feedback";
 import { useFlip, useFlipGesture } from "../fx/orientation";
 import {
   type Action,
@@ -80,6 +80,9 @@ export function HandoffScreen({ state, team, onReady }: { state: GameState; team
       stop();
     };
   }, [team]);
+
+  // Chaque équipe a son indicatif : on sait à qui revient la main sans regarder.
+  useEffect(() => callSign(team), [team]);
 
   // Posé écran contre la table puis relevé : l’autre main est prête.
   const armed = useRef<boolean | null>(null);
@@ -573,7 +576,7 @@ function TransmitView({
 // ---------------------------------------------------------------------------
 // Décodage allié ou interception
 
-export function DecodeScreen({ state, team, dispatch, toast }: ScreenProps) {
+export function DecodeScreen({ state, team, dispatch, toast, announce = false }: ScreenProps & { announce?: boolean }) {
   const round = currentRound(state);
   const active = state.active;
   const own = team === active;
@@ -581,6 +584,10 @@ export function DecodeScreen({ state, team, dispatch, toast }: ScreenProps) {
   const [guess, setGuess] = useState<(number | null)[]>([null, null, null]);
   const [showNotebook, setShowNotebook] = useState(!own);
   const [guide] = useGuide();
+  // Deux téléphones : pas d’écran de passage, l’indicatif annonce le signal reçu.
+  useEffect(() => {
+    if (announce) callSign(team);
+  }, []);
   const complete = guess.every((digit) => digit !== null);
   const pending = (transmission.clues ?? []).map((clue, index) => ({ clue, position: guess[index] }));
 
@@ -750,7 +757,8 @@ export function RevealScreen({
         play("intercept");
         vibrate([40, 30, 40, 30, 220]);
       });
-      at(3500, () => play("static"));
+      at(3150, () => callSign(opponent));
+      at(3700, () => play("static"));
       at(5000, () => setInvasion("out"));
       at(5450, () => {
         setInvasion(null);

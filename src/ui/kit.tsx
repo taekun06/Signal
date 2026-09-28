@@ -2,7 +2,7 @@ import type { ComponentChildren, JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { PHOSPHOR, runScramble } from "../fx/canvasFx";
 import { supportsWarp, useGuide, useImmersion, useScreenShape } from "../fx/display";
-import { play, screenLoad, setTension, vibrate } from "../fx/feedback";
+import { play, screenLoad, setHumTeam, setTension, vibrate } from "../fx/feedback";
 import { type GameState, type TeamId, TEAM_IDS, currentRound, interceptionAllowed, otherTeam, sameCode } from "../game/rules";
 
 export type Tint = TeamId;
@@ -129,6 +129,7 @@ export function Crt({ tint, tension = 0, children }: { tint: Tint; tension?: num
   useEffect(() => {
     setTension(tension);
   }, [tension]);
+  useEffect(() => setHumTeam(tint), [tint]);
   useEffect(() => () => setTension(0), []);
 
   // Petits défauts analogiques : de temps en temps, l’image tremble un instant,

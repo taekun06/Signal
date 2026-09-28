@@ -481,7 +481,7 @@ export function OnlineGame({ initial, onExit }: { initial: OnlineSave; onExit: (
   } else if (myTurn && state.phase === "clues") {
     content = <CluesScreen state={state} team={me} dispatch={dispatch} toast={toast} />;
   } else if (myTurn && state.phase === "decode") {
-    content = <DecodeScreen state={state} team={me} dispatch={dispatch} toast={toast} />;
+    content = <DecodeScreen state={state} team={me} dispatch={dispatch} toast={toast} announce />;
   } else if (myTurn && state.phase === "tiebreak") {
     content = <TiebreakScreen state={state} team={me} dispatch={dispatch} toast={toast} />;
   } else if (state.phase === "reveal") {

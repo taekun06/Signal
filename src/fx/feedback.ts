@@ -23,7 +23,9 @@ type Sound =
   | "modem"
   | "cut"
   | "beam"
-  | "fade";
+  | "fade"
+  | "callA"
+  | "callB";
 
 const STORAGE_KEY = "signal-zero:sound";
 
@@ -51,6 +53,15 @@ export function setSoundEnabled(value: boolean): void {
   } catch {
     /* Stockage indisponible : réglage conservé pour la session. */
   }
+}
+
+// Application en arrière-plan : le tube se tait (plus de ronflement dans la poche).
+if (typeof document !== "undefined") {
+  document.addEventListener("visibilitychange", () => {
+    if (!context) return;
+    if (document.hidden) void context.suspend();
+    else void context.resume();
+  });
 }
 
 /** Les navigateurs n’autorisent le son qu’après un geste de l’utilisateur. */
@@ -118,6 +129,18 @@ let lastTick = 0;
 export function play(sound: Sound): void {
   if (!enabled || !context) return;
   switch (sound) {
+    // Indicatifs d’équipe : l’ambre sonne chaud et grave (triangle, quarte
+    // montante), le vert froid et aigu (sinus pincés, tierce qui retombe).
+    case "callA":
+      tone(196, 0, 0.16, "triangle", 0.07);
+      tone(262, 0.14, 0.26, "triangle", 0.07);
+      tone(392, 0.14, 0.26, "sine", 0.02);
+      break;
+    case "callB":
+      tone(1319, 0, 0.07, "sine", 0.04);
+      tone(1568, 0.08, 0.07, "sine", 0.04);
+      tone(1319, 0.16, 0.18, "sine", 0.035, 1175);
+      break;
     case "key": {
       // Touche mécanique : clic aigu puis choc sourd du fond de course.
       const v = 0.9 + Math.random() * 0.2;
@@ -232,9 +255,22 @@ export function play(sound: Sound): void {
 // Ambiance de tension : ronflement du transformateur qui grossit et, quand la
 // défaite menace, un battement sourd comme un cœur.
 
-let hum: { osc: OscillatorNode; gain: GainNode } | null = null;
+let hum: { osc: OscillatorNode; gain: GainNode; air: GainNode; depth: GainNode } | null = null;
 let heartbeat = 0;
 let tensionLevel = 0;
+// Le secteur ne ronfle pas pareil chez les deux équipes : 50 Hz pour l’ambre,
+// 60 Hz pour le vert. Le tube change de voix quand le téléphone change de main.
+let humBase = 50;
+
+export function setHumTeam(team: "A" | "B"): void {
+  humBase = team === "A" ? 50 : 60;
+  if (hum && context) hum.osc.frequency.setTargetAtTime(humBase + tensionLevel * 2, context.currentTime, 0.6);
+}
+
+/** Sonne l’indicatif de l’équipe. */
+export function callSign(team: "A" | "B"): void {
+  play(team === "A" ? "callA" : "callB");
+}
 
 /** 0 = calme, 1 = la partie se resserre, 2 = une équipe est au bord de la défaite. */
 export function setTension(level: number): void {
@@ -253,11 +289,35 @@ export function setTension(level: number): void {
     gain.gain.value = 0;
     osc.connect(filter).connect(gain).connect(context.destination);
     osc.start();
-    hum = { osc, gain };
+    // Respiration lente du ronflement.
+    const lfo = context.createOscillator();
+    lfo.frequency.value = 0.13;
+    const depth = context.createGain();
+    depth.gain.value = 0.0015;
+    lfo.connect(depth).connect(gain.gain);
+    lfo.start();
+    // Souffle de la porteuse, très bas, en boucle.
+    const buffer = whiteNoise();
+    const air = context.createGain();
+    air.gain.value = 0;
+    if (buffer) {
+      const source = context.createBufferSource();
+      source.buffer = buffer;
+      source.loop = true;
+      const band = context.createBiquadFilter();
+      band.type = "bandpass";
+      band.frequency.value = 2400;
+      band.Q.value = 0.7;
+      source.connect(band).connect(air).connect(context.destination);
+      source.start();
+    }
+    hum = { osc, gain, air, depth };
   }
   const t = context.currentTime;
-  hum.gain.gain.setTargetAtTime(enabled ? [0, 0.006, 0.014][level] ?? 0 : 0, t, 0.8);
-  hum.osc.frequency.setTargetAtTime(50 + level * 2, t, 0.8);
+  hum.gain.gain.setTargetAtTime(enabled ? [0.004, 0.008, 0.015][level] ?? 0 : 0, t, 0.8);
+  hum.air.gain.setTargetAtTime(enabled ? [0.0025, 0.0035, 0.005][level] ?? 0 : 0, t, 0.8);
+  hum.depth.gain.setTargetAtTime(enabled ? 0.0015 : 0, t, 0.3);
+  hum.osc.frequency.setTargetAtTime(humBase + level * 2, t, 0.8);
   if (level >= 2) {
     heartbeat = window.setInterval(() => {
       if (!enabled || !context || document.hidden) return;
