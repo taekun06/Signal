@@ -324,17 +324,42 @@ button:disabled {
   }
 }
 
-/* Reflet de la pièce : il suit l’inclinaison du téléphone. */
+/* Reflet de la pièce : il suit l’inclinaison du téléphone. Une fenêtre
+   lumineuse (tache nette) et une traînée diagonale sur le verre bombé. */
 .crt__reflection {
   position: absolute;
   inset: 0;
   pointer-events: none;
   border-radius: inherit;
-  background: radial-gradient(
-    38% 20% at calc(32% + var(--tilt-x, 0) * 26%) calc(14% + var(--tilt-y, 0) * 16%),
-    rgba(255, 244, 228, 0.07),
-    transparent 70%
+  overflow: hidden;
+  mix-blend-mode: screen;
+  background:
+    radial-gradient(
+      26% 13% at calc(30% + var(--tilt-x, 0) * 45%) calc(16% + var(--tilt-y, 0) * 30%),
+      rgba(255, 246, 232, 0.2),
+      rgba(255, 246, 232, 0.07) 45%,
+      transparent 75%
+    ),
+    radial-gradient(
+      70% 45% at calc(40% + var(--tilt-x, 0) * 30%) calc(28% + var(--tilt-y, 0) * 20%),
+      rgba(255, 246, 232, 0.05),
+      transparent 70%
+    );
+}
+
+.crt__reflection::before {
+  content: "";
+  position: absolute;
+  inset: -40%;
+  background: linear-gradient(
+    115deg,
+    transparent 42%,
+    rgba(255, 246, 232, 0.075) 47%,
+    rgba(255, 246, 232, 0.11) 49%,
+    rgba(255, 246, 232, 0.04) 52%,
+    transparent 58%
   );
+  transform: translate(calc(var(--tilt-x, 0) * 22%), calc(var(--tilt-y, 0) * 14%));
 }
 
 /* Tension : plus la défaite approche, plus le tube souffre. */
