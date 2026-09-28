@@ -31,7 +31,7 @@ import { Button, Countdown, Crt, HeaderBar, PowerCycle, RoundSteps, TypeText, te
 import { PauseMenu } from "./PauseMenu";
 import { Qr } from "./Qr";
 import { CluesScreen, DecodeScreen, GameOverScreen, HandoffScreen, RevealScreen, SummaryScreen, TiebreakScreen } from "./screens";
-import { type SetupTeam, TeamFields } from "./TeamFields";
+import { type SetupTeam, TeamFields, withAgentNames } from "./TeamFields";
 import { useToast } from "./toast";
 
 const TEAM_KEY = "signal-zero:online-team";
@@ -72,7 +72,7 @@ export function OnlineSetup({ room, onBack, onReady }: { room?: string; onBack: 
   const go = () => {
     const name = team.name.trim() || (mode === "host" ? "AMBRE" : "VERT");
     try {
-      const config = sanitizeConfig({ name, players: team.players }, name);
+      const config = sanitizeConfig({ name, players: withAgentNames(team).players }, name);
       if (mode === "join" && code.length !== 4) throw new RuleError("Le code du canal fait quatre lettres.");
       try {
         localStorage.setItem(TEAM_KEY, JSON.stringify(team));
@@ -129,7 +129,7 @@ export function OnlineSetup({ room, onBack, onReady }: { room?: string; onBack: 
           />
         </label>
       )}
-      <p class="hint">Ton équipe, sur ce téléphone. Au moins deux joueurs ; le crypteur change à chaque manche, dans l’ordre de la liste.</p>
+      <p class="hint">Ton équipe, sur ce téléphone. Au moins deux joueurs, prénoms facultatifs ; le crypteur change à chaque manche, dans l’ordre de la liste.</p>
       <div class="setup__teams setup__teams--one">
         <TeamFields
           team={tint}

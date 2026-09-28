@@ -11,7 +11,7 @@ import { type OnlineSave, clearOnlineGame, loadOnlineGame } from "../net/onlineG
 import { Button, Crt, PowerCycle, TypeText } from "./kit";
 import { LocalGame } from "./LocalGame";
 import { OnlineGame, OnlineSetup } from "./Online";
-import { type SetupTeam, TeamFields } from "./TeamFields";
+import { type SetupTeam, TeamFields, withAgentNames } from "./TeamFields";
 import { useToast } from "./toast";
 
 type View =
@@ -314,7 +314,7 @@ function Setup({ onBack, onStart }: { onBack: () => void; onStart: (save: LocalS
 
   const start = () => {
     try {
-      const save = newLocalGame({ teams });
+      const save = newLocalGame({ teams: { A: withAgentNames(teams.A), B: withAgentNames(teams.B) } });
       try {
         localStorage.setItem(SETUP_KEY, JSON.stringify(teams));
       } catch {
@@ -333,7 +333,7 @@ function Setup({ onBack, onStart }: { onBack: () => void; onStart: (save: LocalS
     <div class="screen setup">
       <p class="prompt">&gt; NOUVELLE PARTIE · UN TÉLÉPHONE</p>
       <p class="hint">
-        Au moins {MIN_PLAYERS} joueurs par équipe. Le crypteur change à chaque manche, dans l’ordre de la liste.
+        Au moins {MIN_PLAYERS} joueurs par équipe, prénoms facultatifs (sinon : « Agent 1 », « Agent 2 »…). Le crypteur change à chaque manche, dans l’ordre de la liste.
       </p>
       <div class="setup__teams">
         {(["A", "B"] as TeamId[]).map((team) => (
@@ -345,7 +345,7 @@ function Setup({ onBack, onStart }: { onBack: () => void; onStart: (save: LocalS
           ◀ RETOUR
         </Button>
         <Button onClick={start} class="btn--big" sound={null}>
-          LANCER LA PARTIE ▶
+          LANCER ▶
         </Button>
       </div>
       {toastNode}
