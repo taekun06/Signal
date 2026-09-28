@@ -3814,3 +3814,10 @@ button:disabled {
 .reveal-gate .display { margin:0; }
 .reveal-gate__count { font:400 clamp(120px, 42vw, 220px)/1 var(--display); color:var(--hi); text-shadow:0 0 28px var(--glow); animation:gate-pop .65s steps(4) both; }
 @keyframes gate-pop { 0% { transform:scale(1.4); opacity:0; } 30% { opacity:1; } 100% { transform:scale(1); opacity:.85; } }
+
+/* Dossier déclassifié : aperçu de l’image avant partage. */
+.dossier { position:fixed; inset:0; z-index:70; display:grid; place-items:center; padding:16px; background:rgba(0,0,0,.8); }
+.dossier__sheet { display:grid; gap:12px; width:min(100%, 420px); max-height:100%; }
+.dossier__sheet img { display:block; width:100%; height:auto; max-height:calc(100dvh - 140px); object-fit:contain; border:1px solid var(--faint); box-shadow:0 0 30px var(--glow); animation:dossier-in .5s steps(6) both; }
+@keyframes dossier-in { from { clip-path:inset(0 0 100% 0); } to { clip-path:inset(0); } }
+.victory__dossier { align-self:center; font-size:14px; letter-spacing:.06em; }

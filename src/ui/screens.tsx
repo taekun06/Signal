@@ -21,6 +21,7 @@ import { PixelIcon } from "./icons";
 import { type KeyboardInput, RetroKeyboard } from "./keyboard";
 import { Button, Coach, Countdown, holdHud, LETTERS, Panel, TeamTag, TypeText, reducedMotion, teamMark } from "./kit";
 import { CodeDigits, GuessPicker, KeywordGrid, MechanicalCode, Notebook } from "./widgets";
+import { dossierBlob, renderDossier, shareDossier } from "./dossier";
 
 export interface ScreenProps {
   state: GameState;
@@ -1059,8 +1060,40 @@ export function GameOverScreen({ state, onRematch, onMenu }: { state: GameState;
   }, []);
   const rounds = state.rounds.filter((round) => round.transmissions.A.revealed || round.transmissions.B.revealed);
 
+  // Dossier déclassifié : image de la partie, prête à partager.
+  const [dossier, setDossier] = useState<{ url: string; blob: Blob } | null>(null);
+  const [shareNote, setShareNote] = useState("");
+  const openDossier = async () => {
+    play("teletype");
+    const blob = await dossierBlob(await renderDossier(state));
+    if (blob) setDossier({ url: URL.createObjectURL(blob), blob });
+  };
+  useEffect(() => () => dossier && URL.revokeObjectURL(dossier.url), [dossier]);
+
   return (
     <div class="screen screen--split victory">
+      {dossier && (
+        <div class="dossier" role="dialog" aria-modal="true" aria-label="Dossier déclassifié" onClick={() => setDossier(null)}>
+          <div class="dossier__sheet" onClick={(event) => event.stopPropagation()}>
+            <img src={dossier.url} alt="Dossier déclassifié de la partie" />
+            <div class="actions">
+              <Button variant="ghost" onClick={() => setDossier(null)}>
+                FERMER
+              </Button>
+              <Button
+                class="btn--big"
+                onClick={async () => {
+                  const outcome = await shareDossier(dossier.blob);
+                  setShareNote(outcome === "saved" ? "Image enregistrée dans les téléchargements." : "");
+                }}
+              >
+                PARTAGER ▶
+              </Button>
+            </div>
+            {shareNote && <p class="hint">{shareNote}</p>}
+          </div>
+        </div>
+      )}
       <div class="screen__side victory__head">
         {result.winner !== "draw" && <PixelIcon name="trophy" size={84} class="victory__trophy" />}
         <h1 class="display display--xl">
@@ -1130,6 +1163,9 @@ export function GameOverScreen({ state, onRematch, onMenu }: { state: GameState;
             </p>
           ))}
         </Panel>
+        <button type="button" class="linkish victory__dossier" onClick={() => void openDossier()}>
+          ▣ DOSSIER DÉCLASSIFIÉ · image à partager
+        </button>
         <div class="actions">
           <Button onClick={onMenu} variant="ghost">
             MENU
