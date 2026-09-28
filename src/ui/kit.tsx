@@ -1,7 +1,7 @@
 import type { ComponentChildren, JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { PHOSPHOR, runScramble } from "../fx/canvasFx";
-import { supportsWarp, useImmersion, useScreenShape } from "../fx/display";
+import { supportsWarp, useGuide, useImmersion, useScreenShape } from "../fx/display";
 import { play, screenLoad, setTension, vibrate } from "../fx/feedback";
 import { type GameState, type TeamId, TEAM_IDS, currentRound } from "../game/rules";
 
@@ -278,6 +278,7 @@ export function TypeText({
   speed = 38,
   cursor = false,
   bell = false,
+  silent = false,
 }: {
   text: string;
   delay?: number;
@@ -285,6 +286,8 @@ export function TypeText({
   cursor?: boolean;
   /** Sonnerie de téléscripteur au début du message (indices reçus). */
   bell?: boolean;
+  /** Pas de cliquetis à chaque lettre. */
+  silent?: boolean;
 }) {
   const [count, setCount] = useState(() => (reducedMotion() ? text.length : 0));
   useEffect(() => {
@@ -300,7 +303,7 @@ export function TypeText({
       interval = window.setInterval(() => {
         index += 1;
         setCount(index);
-        if (text[index - 1] && text[index - 1] !== " ") play("tick");
+        if (!silent && text[index - 1] && text[index - 1] !== " ") play("tick");
         if (index >= text.length) clearInterval(interval);
       }, speed);
     }, delay);
@@ -315,6 +318,33 @@ export function TypeText({
       <span aria-hidden="true">{text.slice(0, count)}</span>
       {(!done || cursor) && <span class="cursor" aria-hidden="true">▌</span>}
     </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Guide : pendant la première manche, le terminal souffle l’étape en cours,
+// une ligne à la fois, à la place de l’aide habituelle.
+
+export function Coach({ text, children }: { text: string | null; children?: ComponentChildren }) {
+  const [on, setOn] = useGuide();
+  if (!on || !text) return <>{children}</>;
+  return (
+    <p class="coach" role="status">
+      <span class="coach__head">
+        <span aria-hidden="true">TERMINAL ›</span>
+        <button
+          type="button"
+          class="coach__off"
+          onClick={() => {
+            play("key");
+            setOn(false);
+          }}
+        >
+          couper le guide
+        </button>
+      </span>
+      <TypeText text={text} speed={24} cursor silent />
+    </p>
   );
 }
 

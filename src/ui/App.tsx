@@ -1,6 +1,6 @@
 import { useEffect, useState } from "preact/hooks";
 import { enableMotion, keepScreenOn, promptInstall, toggleFullscreen, useDevice } from "../fx/device";
-import { useScreenShape } from "../fx/display";
+import { useGuide, useScreenShape } from "../fx/display";
 import { play, setSoundEnabled, soundEnabled, unlockAudio } from "../fx/feedback";
 import { type TeamId, MIN_PLAYERS, RuleError } from "../game/rules";
 import { WORDS } from "../game/words";
@@ -245,6 +245,7 @@ function PlayChoice({ onOnline, onLocal, onBack }: { onOnline: () => void; onLoc
 function Settings({ onBack }: { onBack: () => void }) {
   const [sound, setSound] = useState(soundEnabled());
   const [shape, setShape] = useScreenShape();
+  const [guide, setGuide] = useGuide();
   const device = useDevice();
   return (
     <div class="screen screen--center menu">
@@ -262,6 +263,10 @@ function Settings({ onBack }: { onBack: () => void }) {
         <Button variant="ghost" onClick={() => setShape(shape === "curved" ? "flat" : "curved")}>
           ▶ ÉCRAN : {shape === "curved" ? "BOMBÉ" : "PLAT"}
           <small>{shape === "curved" ? "Tube cathodique légèrement bombé" : "Écran plat, lisibilité maximale"}</small>
+        </Button>
+        <Button variant="ghost" onClick={() => setGuide(!guide)}>
+          ▶ GUIDE : {guide ? "ACTIVÉ" : "COUPÉ"}
+          <small>Le terminal souffle quoi faire pendant la première manche</small>
         </Button>
         {device.canFullscreen && (
           <Button variant="ghost" onClick={() => void toggleFullscreen()}>

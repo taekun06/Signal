@@ -1,7 +1,7 @@
 import type { ComponentChildren } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { PHOSPHOR, runOscilloscope } from "../fx/canvasFx";
-import { useImmersion, useKeyboardKind } from "../fx/display";
+import { useGuide, useImmersion, useKeyboardKind } from "../fx/display";
 import { morse, play, scramble, vibrate } from "../fx/feedback";
 import {
   type Action,
@@ -18,7 +18,7 @@ import {
 } from "../game/rules";
 import { PixelIcon } from "./icons";
 import { type KeyboardInput, RetroKeyboard } from "./keyboard";
-import { Button, Countdown, LETTERS, Panel, TeamTag, TypeText, reducedMotion, teamMark } from "./kit";
+import { Button, Coach, Countdown, LETTERS, Panel, TeamTag, TypeText, reducedMotion, teamMark } from "./kit";
 import { CodeDigits, GuessPicker, KeywordGrid, MechanicalCode, Notebook } from "./widgets";
 
 export interface ScreenProps {
@@ -141,6 +141,8 @@ export function CluesScreen({ state, team, dispatch, toast }: ScreenProps) {
   const words = state.teams[team].words;
   const [clues, setClues] = useState(["", "", ""]);
   const [visible, setVisible] = useState(false);
+  // Le crypteur a-t-il déjà regardé son code ? (le guide passe à l’étape suivante)
+  const [seen, setSeen] = useState(false);
   const [active, setActiveState] = useState(0);
   const activeRef = useRef(0);
   const setActive = (index: number) => {
@@ -212,6 +214,7 @@ export function CluesScreen({ state, team, dispatch, toast }: ScreenProps) {
     play(rich ? "beam" : "select");
     vibrate(rich ? 15 : 12);
     setVisible(true);
+    setSeen(true);
   };
   const hide = (fade = true) => {
     setVisible(false);
@@ -276,6 +279,17 @@ export function CluesScreen({ state, team, dispatch, toast }: ScreenProps) {
   }, [state.clueDeadline]);
 
   const filled = clues.every((clue) => clue.trim());
+  // Jamais de mot ni de chiffre ici : le guide reste lisible par-dessus l’épaule.
+  const coach =
+    round.number === 1
+      ? !seen
+        ? "Maintiens CODE SECRET : trois chiffres, rien que pour toi. Les autres regardent ailleurs."
+        : !filled
+          ? "Chaque chiffre désigne un de tes mots. Un indice par ligne : clair pour ton équipe, flou pour l’autre."
+          : "C’est prêt ? Touche TRANSMETTRE, puis garde le doigt appuyé jusqu’au bout."
+      : round.number === 2 && !seen
+        ? "Dès cette manche, l’autre équipe peut intercepter ton code. Évite les indices trop évidents."
+        : null;
 
   if (transmitting) {
     return (
@@ -304,9 +318,11 @@ export function CluesScreen({ state, team, dispatch, toast }: ScreenProps) {
           </button>
         </div>
         <KeywordGrid words={words} highlight={visible ? transmission.code : []} />
-        <p class="hint clues-hint">
-          Fais deviner chaque mot à ton équipe avec un seul indice. Pas de mot-clé, pas d’indice déjà donné.
-        </p>
+        <Coach text={coach}>
+          <p class="hint clues-hint">
+            Fais deviner chaque mot à ton équipe avec un seul indice. Pas de mot-clé, pas d’indice déjà donné.
+          </p>
+        </Coach>
       </div>
       <button
         type="button"
@@ -492,6 +508,7 @@ function TransmitView({
       <p class="prompt">
         &gt; ÉMISSION · {teamMark(team)} {teamName(state, team)}
       </p>
+      <Coach text={currentRound(state).number === 1 ? "Garde le doigt appuyé jusqu’à 100 %. Si tu lâches, la liaison coupe." : null} />
       <div class="transmit__clues">
         {encoded.map((line, index) => (
           <div class="transmit__clue" key={index}>
@@ -541,6 +558,7 @@ export function DecodeScreen({ state, team, dispatch, toast }: ScreenProps) {
   const transmission = round.transmissions[active];
   const [guess, setGuess] = useState<(number | null)[]>([null, null, null]);
   const [showNotebook, setShowNotebook] = useState(!own);
+  const [guide] = useGuide();
   const complete = guess.every((digit) => digit !== null);
   const pending = (transmission.clues ?? []).map((clue, index) => ({ clue, position: guess[index] }));
 
@@ -566,7 +584,15 @@ export function DecodeScreen({ state, team, dispatch, toast }: ScreenProps) {
         {own ? (
           <>
             <KeywordGrid words={state.teams[team].words} />
-            <p class="hint">{transmission.encryptor} a chiffré ce message et ne participe pas.</p>
+            <Coach
+              text={
+                round.number === 1
+                  ? `${transmission.encryptor} se tait. Pour chaque indice, choisissez le numéro du mot visé, puis VERROUILLER.`
+                  : null
+              }
+            >
+              <p class="hint">{transmission.encryptor} a chiffré ce message et ne participe pas.</p>
+            </Coach>
             {round.number > 1 && (
               <button type="button" class="linkish" onClick={() => setShowNotebook(!showNotebook)}>
                 {showNotebook ? "▾ MASQUER" : "▸ AFFICHER"} NOS INDICES PRÉCÉDENTS
@@ -576,16 +602,26 @@ export function DecodeScreen({ state, team, dispatch, toast }: ScreenProps) {
           </>
         ) : (
           <>
-            <p class="hint">
-              Chaque colonne cache un mot de l’équipe {teamName(state, active)}. Vos choix s’y placent en direct.
-            </p>
+            <Coach
+              text={
+                round.number === 2
+                  ? `Première interception ! Leurs anciens indices sont rangés sous chaque numéro : devinez leur code. Deux interceptions et vous gagnez.`
+                  : null
+              }
+            >
+              <p class="hint">
+                Chaque colonne cache un mot de l’équipe {teamName(state, active)}. Vos choix s’y placent en direct.
+              </p>
+            </Coach>
             <Notebook state={state} team={active} pending={pending} />
           </>
         )}
       </div>
       <div class="screen__main">
         <Panel title={`SIGNAL ${teamName(state, active)} · MANCHE ${round.number}`}>
-          <p class="hint picker-hint">Pour chaque indice, choisissez la position du mot-clé qu’il désigne.</p>
+          {!(guide && own && round.number === 1) && (
+            <p class="hint picker-hint">Pour chaque indice, choisissez la position du mot-clé qu’il désigne.</p>
+          )}
           <GuessPicker clues={transmission.clues ?? []} value={guess} onChange={setGuess} />
         </Panel>
         <div class="lock-row">
@@ -715,6 +751,10 @@ export function RevealScreen({
           <p class={`verdict verdict--note${stage >= 1 ? " is-in" : ""}`}>Pas d’interception pendant la première manche.</p>
         )}
 
+        {round.number === 1 && stage >= 3 && (
+          <Coach text="Ces indices sont maintenant gravés dans le carnet. Tirez le bandeau du haut pour le relire à tout moment." />
+        )}
+
         <Button onClick={onContinue} class="btn--big">
           {continueLabel}
         </Button>
@@ -747,6 +787,7 @@ export function SummaryScreen({ state, onContinue }: { state: GameState; onConti
             <i key={i} class={i < round ? "on" : ""} />
           ))}
         </div>
+        <Coach text={round === 1 ? "Nouveaux crypteurs. Et désormais, chaque équipe peut intercepter le code de l’autre." : null} />
         <p class="hint">
           {round} manche{round > 1 ? "s" : ""} jouée{round > 1 ? "s" : ""} sur {state.settings.maxRounds} au maximum
           {next === state.settings.maxRounds ? " · la prochaine est la dernière !" : "."}
