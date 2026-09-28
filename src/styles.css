@@ -3821,3 +3821,18 @@ button:disabled {
 .dossier__sheet img { display:block; width:100%; height:auto; max-height:calc(100dvh - 140px); object-fit:contain; border:1px solid var(--faint); box-shadow:0 0 30px var(--glow); animation:dossier-in .5s steps(6) both; }
 @keyframes dossier-in { from { clip-path:inset(0 0 100% 0); } to { clip-path:inset(0); } }
 .victory__dossier { align-self:center; font-size:14px; letter-spacing:.06em; }
+
+/* Moins de cadres : un seul élément lumineux par écran (le bouton principal
+   ou l’information du moment). Les blocs se séparent par des filets et de
+   l’espace plutôt que par des boîtes. */
+.keywords li { border:0; border-bottom:1px solid var(--faint); background:none; }
+.keywords li.is-lit { border-bottom-color:var(--ph); }
+.reel { border:0; background:none; padding:4px 2px; }
+.verdict { border:0; border-left:3px solid var(--ph); padding:10px 0 10px 14px; }
+.verdict.is-bad { border-left-color:var(--bad); }
+.verdict.is-miss { border-left-color:var(--faint); background:none; }
+.verdict.is-hit { box-shadow:none; background:linear-gradient(90deg, color-mix(in srgb, var(--ph) 16%, transparent), transparent 80%); }
+.verdict--note { border:0; padding-left:0; }
+.handoff__warn { border:0; background:none; color:var(--dim); }
+.setup__team { border:0; border-top:2px solid var(--ph); padding:12px 0 0; background:none; }
+.clue-row__target { border:0; background:var(--wash); }
