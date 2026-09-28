@@ -26,6 +26,7 @@ import {
   useOnlineSession,
 } from "../net/onlineGame";
 import { PixelIcon } from "./icons";
+import { CarnetPull } from "./Carnet";
 import { Button, Countdown, Crt, HeaderBar, PowerCycle, RoundSteps, TypeText, teamMark } from "./kit";
 import { PauseMenu } from "./PauseMenu";
 import { Qr } from "./Qr";
@@ -478,7 +479,9 @@ export function OnlineGame({ initial, onExit }: { initial: OnlineSave; onExit: (
     <Crt tint={me} tension={tension}>
       <div class={`app-frame app-frame--game${fit ? " is-fit" : ""}`}>
         <div class="hud-row">
-          <HeaderBar state={state} label={state.phase === "tiebreak" ? "DÉPARTAGE" : undefined} focus={me} />
+          <CarnetPull state={state} viewer={me}>
+            <HeaderBar state={state} label={state.phase === "tiebreak" ? "DÉPARTAGE" : undefined} focus={me} />
+          </CarnetPull>
           <div class="hud-side">
             <button type="button" class="menu-btn" aria-label="Menu" onClick={() => setMenuOpen(true)}>
               ≡
