@@ -1,6 +1,6 @@
 import { useState } from "preact/hooks";
 import { toggleFullscreen, useDevice } from "../fx/device";
-import { useImmersion, useKeyboardKind, useScreenShape } from "../fx/display";
+import { useKeyboardKind, useScreenShape } from "../fx/display";
 import { setSoundEnabled, soundEnabled } from "../fx/feedback";
 import { Button } from "./kit";
 
@@ -10,7 +10,6 @@ export function PauseMenu({ onClose, onQuit, note }: { onClose: () => void; onQu
   const [sound, setSound] = useState(soundEnabled());
   const [shape, setShape] = useScreenShape();
   const [keyboard, setKeyboard] = useKeyboardKind();
-  const [immersion, setImmersion] = useImmersion();
   const device = useDevice();
   return (
     <div class="overlay" role="dialog" aria-modal="true" aria-label="Menu de la partie">
@@ -30,9 +29,6 @@ export function PauseMenu({ onClose, onQuit, note }: { onClose: () => void; onQu
             </Button>
             <Button variant="ghost" onClick={() => setShape(shape === "curved" ? "flat" : "curved")}>
               ÉCRAN : {shape === "curved" ? "BOMBÉ" : "PLAT"}
-            </Button>
-            <Button variant="ghost" onClick={() => setImmersion(immersion === "new" ? "classic" : "new")}>
-              IMMERSION : {immersion === "new" ? "NOUVELLE" : "ANCIENNE"}
             </Button>
             <Button variant="ghost" onClick={() => setKeyboard(keyboard === "retro" ? "native" : "retro")}>
               CLAVIER : {keyboard === "retro" ? "RÉTRO" : "TÉLÉPHONE"}

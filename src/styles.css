@@ -3685,3 +3685,90 @@ button:disabled {
   opacity: 0.8;
   overflow-wrap: anywhere;
 }
+
+/* ------------------------------------------------------------------------ */
+/* Bandeau des scores épuré : un nom et quatre voyants par équipe            */
+
+.hud__team,
+.hud__team.is-focus {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 0 4px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  box-shadow: none;
+  opacity: 0.6;
+  transition:
+    opacity 0.3s,
+    border-color 0.3s;
+}
+
+.hud__team.is-focus {
+  opacity: 1;
+  border-bottom-color: var(--ph);
+}
+
+.hud__team .hud__name {
+  width: auto;
+  min-width: 0;
+  font-size: 17px;
+  color: var(--ph);
+}
+
+.hud__lamps {
+  display: inline-flex;
+  gap: 7px;
+  flex: none;
+}
+
+.hud__lamps .tokens i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+@media (max-width: 720px) {
+  .hud {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  .hud__top {
+    flex-direction: row;
+    font-size: 14px;
+  }
+  .hud__team {
+    padding: 2px 0 3px;
+  }
+}
+
+/* ------------------------------------------------------------------------ */
+/* Menu : un seul grand bouton, le reste en liens discrets                   */
+
+.menu__play {
+  min-height: 72px;
+  font-size: 30px;
+  letter-spacing: 0.24em;
+}
+
+.menu__links {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 14px;
+  margin: 4px 0 0;
+  color: var(--faint);
+  font-size: 14px;
+}
+
+.menu__links--quiet {
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+/* Grain du tube : fin et discret, plus de gros pavés. */
+.crt__noise {
+  image-rendering: auto;
+  opacity: 0.045;
+}

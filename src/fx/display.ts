@@ -97,13 +97,9 @@ export type Immersion = "new" | "classic";
 const IMMERSION_KEY = "signal-zero:immersion";
 const immersionListeners = new Set<(value: Immersion) => void>();
 
-let immersion: Immersion = (() => {
-  try {
-    return localStorage.getItem(IMMERSION_KEY) === "classic" ? "classic" : "new";
-  } catch {
-    return "new";
-  }
-})();
+// La comparaison est terminée : tout le monde joue avec la version enrichie.
+// L’ancien choix enregistré est ignoré.
+let immersion: Immersion = "new";
 
 export function useImmersion(): [Immersion, (value: Immersion) => void] {
   const [value, setValue] = useState(immersion);
