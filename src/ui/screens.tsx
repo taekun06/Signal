@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { PHOSPHOR, runOscilloscope } from "../fx/canvasFx";
 import { useGuide, useImmersion, useKeyboardKind } from "../fx/display";
 import { morse, play, vibrate } from "../fx/feedback";
+import { useFlip, useFlipGesture } from "../fx/orientation";
 import {
   type Action,
   type GameState,
@@ -80,6 +81,23 @@ export function HandoffScreen({ state, team, onReady }: { state: GameState; team
     };
   }, [team]);
 
+  // Posé écran contre la table puis relevé : l’autre main est prête.
+  const armed = useRef<boolean | null>(null);
+  const flip = useFlipGesture({
+    onDown: () => {
+      armed.current = true;
+    },
+    onUp: () => {
+      if (!armed.current) return;
+      armed.current = false;
+      play("send");
+      vibrate(30);
+      onReady();
+    },
+  });
+  // Écran déjà posé sur la table quand il apparaît : le relever suffit.
+  if (armed.current === null) armed.current = flip.down;
+
   let caption = "DONNE LE TÉLÉPHONE À L’ÉQUIPE";
   let who = name;
   let sub: string;
@@ -127,6 +145,7 @@ export function HandoffScreen({ state, team, onReady }: { state: GameState; team
         <Button onClick={onReady} class="btn--big" sound="send">
           {cta} ▶
         </Button>
+        {flip.enabled && flip.sensor && <p class="flip-hint">ou pose-le écran contre la table, puis retourne-le</p>}
       </div>
     </div>
   );
@@ -266,6 +285,9 @@ export function CluesScreen({ state, team, dispatch, toast }: ScreenProps) {
       clearTimeout(peekTimer.current);
     };
   }, []);
+
+  // Téléphone posé écran contre la table : le code disparaît aussitôt.
+  useFlipGesture({ onDown: () => hide(false) });
 
   // Sablier écoulé : les indices en cours partent tels quels.
   useEffect(() => {
@@ -569,6 +591,18 @@ export function DecodeScreen({ state, team, dispatch, toast }: ScreenProps) {
     }
   };
 
+  // Poser le téléphone écran contre la table verrouille la réponse.
+  const flip = useFlipGesture({
+    onDown: () => {
+      if (complete) lock();
+      else {
+        play("error");
+        vibrate([30, 40, 30]);
+        toast("Choisissez les trois positions avant de poser le téléphone.");
+      }
+    },
+  });
+
   return (
     <div class="screen screen--split">
       <div class="screen__side">
@@ -630,6 +664,7 @@ export function DecodeScreen({ state, team, dispatch, toast }: ScreenProps) {
             VERROUILLER
           </Button>
         </div>
+        {flip.enabled && flip.sensor && complete && <p class="flip-hint">ou posez le téléphone écran contre la table</p>}
       </div>
     </div>
   );
@@ -664,11 +699,38 @@ export function RevealScreen({
   const [glitch, setGlitch] = useState(false);
   const timersRef = useRef<number[]>([]);
 
+  // Téléphone posé écran contre la table quand le résultat arrive : on attend
+  // qu’il soit retourné, puis compte à rebours, et seulement alors la révélation.
+  const flip = useFlip();
+  const [gate, setGate] = useState<"down" | number | null>(() => (flip.enabled && flip.down ? "down" : null));
+  const gateTimers = useRef<number[]>([]);
+  const openGate = () => {
+    if (gate !== "down") return;
+    const steps = reducedMotion() ? [] : [3, 2, 1];
+    steps.forEach((n, i) =>
+      gateTimers.current.push(
+        window.setTimeout(() => {
+          setGate(n);
+          play("reel");
+          vibrate(20);
+        }, i * 650),
+      ),
+    );
+    gateTimers.current.push(window.setTimeout(() => setGate(null), steps.length * 650));
+  };
+  useFlipGesture({ onUp: openGate });
+  useEffect(() => () => gateTimers.current.forEach(clearTimeout), []);
+  const revealed = gate === null;
+
   useEffect(() => {
-    if (reducedMotion()) return;
+    holdHud({ miscommunication: true, interception: true });
+    return () => holdHud(null);
+  }, []);
+
+  useEffect(() => {
+    if (!revealed || reducedMotion()) return;
     const timers = timersRef.current;
     const at = (ms: number, fn: () => void) => timers.push(window.setTimeout(fn, ms));
-    holdHud({ miscommunication: true, interception: true });
     at(1900, () => {
       setStage(1);
       holdHud({ miscommunication: false, interception: true });
@@ -705,16 +767,13 @@ export function RevealScreen({
         if (withIntercept) play("key");
       });
     }
-    return () => {
-      timersRef.current.forEach(clearTimeout);
-      holdHud(null);
-    };
-  }, []);
+    return () => timersRef.current.forEach(clearTimeout);
+  }, [revealed]);
 
   // Le jeton d’interception ne s’allume dans le bandeau qu’en tombant.
   useEffect(() => {
-    if (stage >= 3) holdHud(null);
-  }, [stage]);
+    if (revealed && stage >= 3) holdHud(null);
+  }, [stage, revealed]);
 
   // Un toucher sur l’invasion la fait refluer tout de suite.
   const skipInvasion = () => {
@@ -729,6 +788,29 @@ export function RevealScreen({
       }, 450),
     ];
   };
+
+  if (!revealed) {
+    return (
+      <div class="screen screen--center reveal-gate">
+        {gate === "down" ? (
+          <>
+            <span class="eyebrow">
+              SIGNAL {teamMark(active)} {teamName(state, active)} · RÉSULTAT PRÊT
+            </span>
+            <h1 class="display">RETOURNEZ LE TÉLÉPHONE</h1>
+            <p class="hint">Tous ensemble, pour la révélation.</p>
+            <button type="button" class="linkish" onClick={openGate}>
+              révéler sans retourner
+            </button>
+          </>
+        ) : (
+          <b class="reveal-gate__count" key={gate}>
+            {gate}
+          </b>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div class={`screen screen--split reveal${glitch ? " is-glitch" : ""}`}>

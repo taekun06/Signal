@@ -3805,3 +3805,12 @@ button:disabled {
   70% { transform:translate(-1px, 0); }
   100% { transform:none; }
 }
+
+/* Téléphone retourné : rappel discret du geste, et révélation qui attend
+   que l’écran soit relevé. */
+.flip-hint { margin:6px 0 0; text-align:center; color:var(--faint); font-size:12px; letter-spacing:.04em; }
+.flip-hint::before { content:"⟲ "; color:var(--dim); }
+.reveal-gate { gap:14px; text-align:center; }
+.reveal-gate .display { margin:0; }
+.reveal-gate__count { font:400 clamp(120px, 42vw, 220px)/1 var(--display); color:var(--hi); text-shadow:0 0 28px var(--glow); animation:gate-pop .65s steps(4) both; }
+@keyframes gate-pop { 0% { transform:scale(1.4); opacity:0; } 30% { opacity:1; } 100% { transform:scale(1); opacity:.85; } }

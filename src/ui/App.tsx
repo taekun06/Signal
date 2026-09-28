@@ -1,6 +1,7 @@
 import { useEffect, useState } from "preact/hooks";
 import { enableMotion, keepScreenOn, promptInstall, toggleFullscreen, useDevice } from "../fx/device";
 import { useGuide, useScreenShape } from "../fx/display";
+import { setFlipEnabled, useFlip } from "../fx/orientation";
 import { play, setSoundEnabled, soundEnabled, unlockAudio } from "../fx/feedback";
 import { type TeamId, MIN_PLAYERS, RuleError } from "../game/rules";
 import { WORDS } from "../game/words";
@@ -246,6 +247,7 @@ function Settings({ onBack }: { onBack: () => void }) {
   const [sound, setSound] = useState(soundEnabled());
   const [shape, setShape] = useScreenShape();
   const [guide, setGuide] = useGuide();
+  const flip = useFlip();
   const device = useDevice();
   return (
     <div class="screen screen--center menu">
@@ -267,6 +269,10 @@ function Settings({ onBack }: { onBack: () => void }) {
         <Button variant="ghost" onClick={() => setGuide(!guide)}>
           ▶ GUIDE : {guide ? "ACTIVÉ" : "COUPÉ"}
           <small>Le terminal souffle quoi faire pendant la première manche</small>
+        </Button>
+        <Button variant="ghost" onClick={() => setFlipEnabled(!flip.enabled)}>
+          ▶ TÉLÉPHONE RETOURNÉ : {flip.enabled ? "ACTIVÉ" : "COUPÉ"}
+          <small>Poser l’écran contre la table verrouille une réponse ou passe la main</small>
         </Button>
         {device.canFullscreen && (
           <Button variant="ghost" onClick={() => void toggleFullscreen()}>
