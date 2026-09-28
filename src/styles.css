@@ -3676,3 +3676,12 @@ button:disabled {
     animation: none;
   }
 }
+
+/* Diagnostic de liaison, affiché quand elle tarde (à photographier en cas de souci). */
+.lobby__diag {
+  margin: 0;
+  font: 400 11px/1.4 var(--mono);
+  color: var(--dim);
+  opacity: 0.8;
+  overflow-wrap: anywhere;
+}
