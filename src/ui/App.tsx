@@ -1,6 +1,6 @@
 import { useEffect, useState } from "preact/hooks";
 import { enableMotion, keepScreenOn, promptInstall, toggleFullscreen, useDevice } from "../fx/device";
-import { useImmersion, useScreenShape } from "../fx/display";
+import { useScreenShape } from "../fx/display";
 import { play, setSoundEnabled, soundEnabled, unlockAudio } from "../fx/feedback";
 import { type TeamId, MIN_PLAYERS, RuleError } from "../game/rules";
 import { WORDS } from "../game/words";
@@ -18,6 +18,8 @@ type View =
   | { name: "menu" }
   | { name: "setup" }
   | { name: "rules" }
+  | { name: "play" }
+  | { name: "settings" }
   | { name: "local"; save: LocalSave }
   | { name: "online-setup"; room?: string }
   | { name: "online"; save: OnlineSave };
@@ -52,17 +54,25 @@ export function App() {
           {view.name === "boot" && <Boot onDone={() => setView(joinRoom ? { name: "online-setup", room: joinRoom } : { name: "menu" })} />}
           {view.name === "menu" && (
             <Menu
-              onNew={() => setView({ name: "setup" })}
+              onPlay={() => setView({ name: "play" })}
               onResume={(save) => setView({ name: "local", save })}
-              onOnline={() => setView({ name: "online-setup" })}
               onResumeOnline={(save) => setView({ name: "online", save })}
               onRules={() => setView({ name: "rules" })}
+              onSettings={() => setView({ name: "settings" })}
             />
           )}
+          {view.name === "play" && (
+            <PlayChoice
+              onOnline={() => setView({ name: "online-setup" })}
+              onLocal={() => setView({ name: "setup" })}
+              onBack={() => setView({ name: "menu" })}
+            />
+          )}
+          {view.name === "settings" && <Settings onBack={() => setView({ name: "menu" })} />}
           {view.name === "online-setup" && (
             <OnlineSetup room={view.room} onBack={() => setView({ name: "menu" })} onReady={(save) => setView({ name: "online", save })} />
           )}
-          {view.name === "setup" && <Setup onBack={() => setView({ name: "menu" })} onStart={(save) => setView({ name: "local", save })} />}
+          {view.name === "setup" && <Setup onBack={() => setView({ name: "play" })} onStart={(save) => setView({ name: "local", save })} />}
           {view.name === "rules" && <Rules onBack={() => setView({ name: "menu" })} />}
         </PowerCycle>
       </div>
@@ -117,25 +127,21 @@ function Boot({ onDone }: { onDone: () => void }) {
 // Menu principal
 
 function Menu({
-  onNew,
+  onPlay,
   onResume,
-  onOnline,
   onResumeOnline,
   onRules,
+  onSettings,
 }: {
-  onNew: () => void;
+  onPlay: () => void;
   onResume: (save: LocalSave) => void;
-  onOnline: () => void;
   onResumeOnline: (save: OnlineSave) => void;
   onRules: () => void;
+  onSettings: () => void;
 }) {
   const [saved, setSaved] = useState(() => loadLocalGame());
   const [online, setOnline] = useState(() => loadOnlineGame());
   const onlineInProgress = online && online.state?.phase !== "over";
-  const [sound, setSound] = useState(soundEnabled());
-  const [shape, setShape] = useScreenShape();
-  const [immersion, setImmersion] = useImmersion();
-  const device = useDevice();
   const inProgress = saved && saved.state.phase !== "over";
   return (
     <div class="screen screen--center menu">
@@ -164,38 +170,86 @@ function Menu({
             </small>
           </Button>
         )}
-        <Button variant={inProgress || onlineInProgress ? "ghost" : "primary"} onClick={onOnline}>
-          ▶ DEUX TÉLÉPHONES
-          <small>Un téléphone par équipe, reliés en direct</small>
+        <Button variant={inProgress || onlineInProgress ? "ghost" : "primary"} onClick={onPlay} class="btn--big menu__play">
+          {inProgress || onlineInProgress ? "▶ NOUVELLE PARTIE" : "▶ JOUER"}
         </Button>
-        <Button variant="ghost" onClick={onNew}>
+      </nav>
+      <p class="menu__links">
+        <button type="button" class="linkish" onClick={onRules}>
+          règles
+        </button>
+        <span aria-hidden="true">·</span>
+        <button type="button" class="linkish" onClick={onSettings}>
+          réglages
+        </button>
+      </p>
+      {(onlineInProgress || inProgress) && (
+        <p class="menu__links menu__links--quiet">
+          {onlineInProgress && (
+            <button
+              type="button"
+              class="linkish"
+              onClick={() => {
+                clearOnlineGame();
+                setOnline(null);
+              }}
+            >
+              oublier le canal {online.room}
+            </button>
+          )}
+          {inProgress && (
+            <button
+              type="button"
+              class="linkish"
+              onClick={() => {
+                clearLocalGame();
+                setSaved(null);
+              }}
+            >
+              effacer la partie sauvegardée
+            </button>
+          )}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Choix du nombre de téléphones
+
+function PlayChoice({ onOnline, onLocal, onBack }: { onOnline: () => void; onLocal: () => void; onBack: () => void }) {
+  return (
+    <div class="screen screen--center menu">
+      <p class="prompt">&gt; COMBIEN DE TÉLÉPHONES ?</p>
+      <nav class="menu__list">
+        <Button onClick={onOnline}>
+          ▶ DEUX TÉLÉPHONES
+          <small>Un par équipe, reliés en direct. Recommandé.</small>
+        </Button>
+        <Button variant="ghost" onClick={onLocal}>
           ▶ UN SEUL TÉLÉPHONE
           <small>Les deux équipes se le passent</small>
         </Button>
-        <Button variant="ghost" onClick={onRules}>
-          ▶ RÈGLES
+        <Button variant="ghost" onClick={onBack}>
+          ◀ RETOUR
         </Button>
-        <Button variant="ghost" onClick={() => setShape(shape === "curved" ? "flat" : "curved")}>
-          ▶ ÉCRAN : {shape === "curved" ? "BOMBÉ" : "PLAT"}
-          <small>{shape === "curved" ? "Tube cathodique légèrement bombé" : "Écran plat, lisibilité maximale"}</small>
-        </Button>
-        <Button variant="ghost" onClick={() => setImmersion(immersion === "new" ? "classic" : "new")}>
-          ▶ IMMERSION : {immersion === "new" ? "NOUVELLE" : "ANCIENNE"}
-          <small>
-            {immersion === "new" ? "Faisceau, émission maintenue, déchiffrement, tension" : "L’écran d’avant, pour comparer"}
-          </small>
-        </Button>
-        {device.canInstall && (
-          <Button variant="ghost" onClick={() => void promptInstall()}>
-            ▶ INSTALLER L’APPLICATION
-            <small>Icône sur l’écran d’accueil, plein écran, jouable hors ligne</small>
-          </Button>
-        )}
-        {device.canFullscreen && (
-          <Button variant="ghost" onClick={() => void toggleFullscreen()}>
-            ▶ PLEIN ÉCRAN : {device.fullscreen ? "ACTIVÉ" : "DÉSACTIVÉ"}
-          </Button>
-        )}
+      </nav>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Réglages de l’appareil
+
+function Settings({ onBack }: { onBack: () => void }) {
+  const [sound, setSound] = useState(soundEnabled());
+  const [shape, setShape] = useScreenShape();
+  const device = useDevice();
+  return (
+    <div class="screen screen--center menu">
+      <p class="prompt">&gt; RÉGLAGES</p>
+      <nav class="menu__list">
         <Button
           variant="ghost"
           onClick={() => {
@@ -205,30 +259,22 @@ function Menu({
         >
           ▶ SON : {sound ? "ACTIVÉ" : "COUPÉ"}
         </Button>
-        {onlineInProgress && (
-          <button
-            type="button"
-            class="linkish"
-            onClick={() => {
-              clearOnlineGame();
-              setOnline(null);
-            }}
-          >
-            oublier le canal {online.room}
-          </button>
+        <Button variant="ghost" onClick={() => setShape(shape === "curved" ? "flat" : "curved")}>
+          ▶ ÉCRAN : {shape === "curved" ? "BOMBÉ" : "PLAT"}
+          <small>{shape === "curved" ? "Tube cathodique légèrement bombé" : "Écran plat, lisibilité maximale"}</small>
+        </Button>
+        {device.canFullscreen && (
+          <Button variant="ghost" onClick={() => void toggleFullscreen()}>
+            ▶ PLEIN ÉCRAN : {device.fullscreen ? "ACTIVÉ" : "DÉSACTIVÉ"}
+          </Button>
         )}
-        {inProgress && (
-          <button
-            type="button"
-            class="linkish"
-            onClick={() => {
-              clearLocalGame();
-              setSaved(null);
-            }}
-          >
-            effacer la partie sauvegardée
-          </button>
+        {device.canInstall && (
+          <Button variant="ghost" onClick={() => void promptInstall()}>
+            ▶ INSTALLER L’APPLICATION
+            <small>Icône sur l’écran d’accueil, plein écran, jouable hors ligne</small>
+          </Button>
         )}
+        <Button onClick={onBack}>◀ RETOUR</Button>
       </nav>
     </div>
   );

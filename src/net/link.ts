@@ -24,6 +24,8 @@ export interface Link {
   send(data: unknown): void;
   /** Invité : relance la connexion (après une coupure). */
   retry(): void;
+  /** Où en est la liaison, en clair, pour comprendre un blocage. */
+  diagnostic(): string;
   close(): void;
 }
 
@@ -95,6 +97,7 @@ function openLocal(role: "host" | "guest", room: string, emit: (event: LinkEvent
   return {
     send: (data) => channel.postMessage({ from: role, data }),
     retry: () => {},
+    diagnostic: () => "liaison locale",
     close: () => channel.close(),
   };
 }
@@ -107,8 +110,23 @@ function openPeer(role: "host" | "guest", room: string, emit: (event: LinkEvent)
   let peer: PeerType | null = null;
   let connections: DataConnection[] = [];
   let retryTimer = 0;
+  // Diagnostic : mise en relation, adresses trouvées, état de la liaison directe.
+  let broker = "en cours";
+  let ice = "pas commencée";
+  const candidates = new Set<string>();
+
+  const trace = (conn: DataConnection) => {
+    const pc = conn.peerConnection;
+    if (!pc) return;
+    pc.addEventListener("icecandidate", (event) => {
+      const type = event.candidate?.type ?? /typ (\w+)/.exec(event.candidate?.candidate ?? "")?.[1];
+      if (type) candidates.add(type);
+    });
+    pc.addEventListener("iceconnectionstatechange", () => (ice = pc.iceConnectionState));
+  };
 
   const watch = (conn: DataConnection) => {
+    trace(conn);
     conn.on("open", () => {
       connections = [...connections.filter((c) => c.open && c !== conn), conn];
       if (role === "guest") emit({ type: "ready" });
@@ -138,6 +156,7 @@ function openPeer(role: "host" | "guest", room: string, emit: (event: LinkEvent)
     const options: PeerOptions = { ...server, config: { iceServers: ICE_SERVERS }, debug: 0 };
     peer = role === "host" ? new Peer(PREFIX + room, options) : new Peer(options);
     peer.on("open", () => {
+      broker = "OK";
       if (role === "host") emit({ type: "ready" });
       else connect();
     });
@@ -150,6 +169,7 @@ function openPeer(role: "host" | "guest", room: string, emit: (event: LinkEvent)
     peer.on("error", (error) => {
       if (closed) return;
       const type = (error as { type?: string }).type;
+      if (type) broker = type === "peer-unavailable" ? "canal introuvable" : `erreur ${type}`;
       if (type === "unavailable-id") {
         emit({ type: "taken" });
       } else if (type === "peer-unavailable") {
@@ -164,6 +184,10 @@ function openPeer(role: "host" | "guest", room: string, emit: (event: LinkEvent)
   return {
     send(data) {
       for (const conn of connections) if (conn.open) conn.send(data);
+    },
+    diagnostic() {
+      const found = ["host", "srflx", "relay"].map((type) => `${type}${candidates.has(type) ? "✓" : "✗"}`).join(" ");
+      return `serveur : ${broker} · adresses : ${found} · liaison : ${ice}`;
     },
     retry() {
       clearTimeout(retryTimer);

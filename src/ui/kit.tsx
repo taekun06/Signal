@@ -4,7 +4,6 @@ import { PHOSPHOR, runScramble } from "../fx/canvasFx";
 import { supportsWarp, useImmersion, useScreenShape } from "../fx/display";
 import { play, screenLoad, setTension, vibrate } from "../fx/feedback";
 import { type GameState, type TeamId, TEAM_IDS, currentRound } from "../game/rules";
-import { PixelIcon } from "./icons";
 
 export type Tint = TeamId;
 
@@ -167,11 +166,14 @@ export function Crt({ tint, tension = 0, children }: { tint: Tint; tension?: num
     const canvas = noiseRef.current;
     const ctx = canvas?.getContext("2d");
     if (!canvas || !ctx) return;
-    const size = 96;
-    canvas.width = size;
-    canvas.height = size;
+    // Un grain à la taille réelle de l’écran (à demi-résolution) : fin comme
+    // celui d’un vrai tube, au lieu de gros pavés étirés.
+    const width = Math.max(64, Math.min(640, Math.round(canvas.offsetWidth / 2)));
+    const height = Math.max(64, Math.min(1000, Math.round(canvas.offsetHeight / 2)));
+    canvas.width = width;
+    canvas.height = height;
     const frames = Array.from({ length: 6 }, () => {
-      const image = ctx.createImageData(size, size);
+      const image = ctx.createImageData(width, height);
       for (let i = 0; i < image.data.length; i += 4) {
         const v = Math.random() * 255;
         image.data[i] = image.data[i + 1] = image.data[i + 2] = v;
@@ -424,23 +426,27 @@ export function HeaderBar({ state, label, focus }: { state: GameState; label?: s
         </span>
       </div>
       <div class="hud__teams">
-        {TEAM_IDS.map((team) => (
-          <div class={`hud__team${focus === team ? " is-focus" : ""}`} data-tint={team} key={team}>
-            <span class="hud__name">
-              {teamMark(team)} {state.teams[team].name.toUpperCase()}
-            </span>
-            <span class="hud__stat">
-              <PixelIcon name="target" size={12} />
-              INTERCEPTIONS
-              <Tokens count={state.teams[team].interceptions} />
-            </span>
-            <span class="hud__stat hud__stat--bad">
-              <PixelIcon name="cross" size={12} />
-              MALENTENDUS
-              <Tokens count={state.teams[team].miscommunications} bad />
-            </span>
-          </div>
-        ))}
+        {TEAM_IDS.map((team) => {
+          const { name, interceptions, miscommunications } = state.teams[team];
+          return (
+            <div
+              class={`hud__team${focus === team ? " is-focus" : ""}`}
+              data-tint={team}
+              key={team}
+              role="group"
+              aria-label={`${name} : ${interceptions} interception${interceptions > 1 ? "s" : ""} et ${miscommunications} malentendu${miscommunications > 1 ? "s" : ""} sur 2`}
+            >
+              <span class="hud__name">
+                {teamMark(team)} {name.toUpperCase()}
+              </span>
+              {/* Voyants : interceptions à la couleur de l’équipe, malentendus en rouge. */}
+              <span class="hud__lamps" aria-hidden="true">
+                <Tokens count={interceptions} />
+                <Tokens count={miscommunications} bad />
+              </span>
+            </div>
+          );
+        })}
       </div>
     </header>
   );

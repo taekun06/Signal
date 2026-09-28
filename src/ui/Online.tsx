@@ -209,12 +209,18 @@ function Lobby({ session, onLeave }: { session: OnlineSession; onLeave: () => vo
 
   // Liaison qui ne vient pas : on explique quoi essayer au lieu d’attendre en silence.
   const [slow, setSlow] = useState(false);
-  const searching = !host && (status === "connecting" || status === "lost");
+  const searching = status !== "online" && status !== "full";
+  const [, setTick] = useState(0);
   useEffect(() => {
     setSlow(false);
     if (!searching) return;
     const id = window.setTimeout(() => setSlow(true), 15000);
-    return () => clearTimeout(id);
+    // Le diagnostic se met à jour chaque seconde tant qu’on attend.
+    const refresh = window.setInterval(() => setTick((n) => n + 1), 1000);
+    return () => {
+      clearTimeout(id);
+      clearInterval(refresh);
+    };
   }, [searching]);
 
   return (
@@ -233,12 +239,13 @@ function Lobby({ session, onLeave }: { session: OnlineSession; onLeave: () => vo
           <i />
           {line}
         </p>
-        {slow && searching && (
+        {slow && searching && !host && (
           <p class="hint lobby__slow" role="status">
             La liaison tarde. Vérifie que l’autre téléphone affiche bien le canal {save.room} et garde son écran allumé. Si ça bloque
             encore, mettez les deux téléphones sur le même Wi-Fi.
           </p>
         )}
+        {slow && searching && <p class="lobby__diag">{session.diagnostic()}</p>}
       </div>
       {host && status !== "online" && (
         <div class="lobby__qr">

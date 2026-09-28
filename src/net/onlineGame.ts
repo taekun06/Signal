@@ -162,6 +162,11 @@ export class OnlineSession {
     this.emit();
   }
 
+  /** Où en est la liaison, pour l’afficher quand elle tarde. */
+  diagnostic(): string {
+    return this.link?.diagnostic() ?? "";
+  }
+
   private setStatus(status: LinkStatus) {
     if (this.status === status) return;
     this.status = status;
