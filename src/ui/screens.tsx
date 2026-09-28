@@ -1,8 +1,9 @@
 import type { ComponentChildren } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { PHOSPHOR, runOscilloscope } from "../fx/canvasFx";
-import { useImmersion, useKeyboardKind } from "../fx/display";
-import { morse, play, scramble, vibrate } from "../fx/feedback";
+import { useGuide, useImmersion, useKeyboardKind } from "../fx/display";
+import { callSign, morse, play, vibrate } from "../fx/feedback";
+import { useFlip, useFlipGesture } from "../fx/orientation";
 import {
   type Action,
   type GameState,
@@ -18,8 +19,9 @@ import {
 } from "../game/rules";
 import { PixelIcon } from "./icons";
 import { type KeyboardInput, RetroKeyboard } from "./keyboard";
-import { Button, Countdown, LETTERS, Panel, TeamTag, TypeText, reducedMotion, teamMark } from "./kit";
+import { Button, Coach, Countdown, holdHud, LETTERS, Panel, TeamTag, TypeText, reducedMotion, teamMark } from "./kit";
 import { CodeDigits, GuessPicker, KeywordGrid, MechanicalCode, Notebook } from "./widgets";
+import { dossierBlob, renderDossier, shareDossier } from "./dossier";
 
 export interface ScreenProps {
   state: GameState;
@@ -80,6 +82,26 @@ export function HandoffScreen({ state, team, onReady }: { state: GameState; team
     };
   }, [team]);
 
+  // Chaque équipe a son indicatif : on sait à qui revient la main sans regarder.
+  useEffect(() => callSign(team), [team]);
+
+  // Posé écran contre la table puis relevé : l’autre main est prête.
+  const armed = useRef<boolean | null>(null);
+  const flip = useFlipGesture({
+    onDown: () => {
+      armed.current = true;
+    },
+    onUp: () => {
+      if (!armed.current) return;
+      armed.current = false;
+      play("send");
+      vibrate(30);
+      onReady();
+    },
+  });
+  // Écran déjà posé sur la table quand il apparaît : le relever suffit.
+  if (armed.current === null) armed.current = flip.down;
+
   let caption = "DONNE LE TÉLÉPHONE À L’ÉQUIPE";
   let who = name;
   let sub: string;
@@ -127,6 +149,7 @@ export function HandoffScreen({ state, team, onReady }: { state: GameState; team
         <Button onClick={onReady} class="btn--big" sound="send">
           {cta} ▶
         </Button>
+        {flip.enabled && flip.sensor && <p class="flip-hint">ou pose-le écran contre la table, puis retourne-le</p>}
       </div>
     </div>
   );
@@ -141,6 +164,8 @@ export function CluesScreen({ state, team, dispatch, toast }: ScreenProps) {
   const words = state.teams[team].words;
   const [clues, setClues] = useState(["", "", ""]);
   const [visible, setVisible] = useState(false);
+  // Le crypteur a-t-il déjà regardé son code ? (le guide passe à l’étape suivante)
+  const [seen, setSeen] = useState(false);
   const [active, setActiveState] = useState(0);
   const activeRef = useRef(0);
   const setActive = (index: number) => {
@@ -212,6 +237,7 @@ export function CluesScreen({ state, team, dispatch, toast }: ScreenProps) {
     play(rich ? "beam" : "select");
     vibrate(rich ? 15 : 12);
     setVisible(true);
+    setSeen(true);
   };
   const hide = (fade = true) => {
     setVisible(false);
@@ -264,6 +290,9 @@ export function CluesScreen({ state, team, dispatch, toast }: ScreenProps) {
     };
   }, []);
 
+  // Téléphone posé écran contre la table : le code disparaît aussitôt.
+  useFlipGesture({ onDown: () => hide(false) });
+
   // Sablier écoulé : les indices en cours partent tels quels.
   useEffect(() => {
     if (!state.clueDeadline) return;
@@ -276,6 +305,17 @@ export function CluesScreen({ state, team, dispatch, toast }: ScreenProps) {
   }, [state.clueDeadline]);
 
   const filled = clues.every((clue) => clue.trim());
+  // Jamais de mot ni de chiffre ici : le guide reste lisible par-dessus l’épaule.
+  const coach =
+    round.number === 1
+      ? !seen
+        ? "Maintiens CODE SECRET : trois chiffres, rien que pour toi. Les autres regardent ailleurs."
+        : !filled
+          ? "Chaque chiffre désigne un de tes mots. Un indice par ligne : clair pour ton équipe, flou pour l’autre."
+          : "C’est prêt ? Touche TRANSMETTRE, puis garde le doigt appuyé jusqu’au bout."
+      : round.number === 2 && !seen
+        ? "Dès cette manche, l’autre équipe peut intercepter ton code. Évite les indices trop évidents."
+        : null;
 
   if (transmitting) {
     return (
@@ -304,9 +344,11 @@ export function CluesScreen({ state, team, dispatch, toast }: ScreenProps) {
           </button>
         </div>
         <KeywordGrid words={words} highlight={visible ? transmission.code : []} />
-        <p class="hint clues-hint">
-          Fais deviner chaque mot à ton équipe avec un seul indice. Pas de mot-clé, pas d’indice déjà donné.
-        </p>
+        <Coach text={coach}>
+          <p class="hint clues-hint">
+            Fais deviner chaque mot à ton équipe avec un seul indice. Pas de mot-clé, pas d’indice déjà donné.
+          </p>
+        </Coach>
       </div>
       <button
         type="button"
@@ -492,6 +534,7 @@ function TransmitView({
       <p class="prompt">
         &gt; ÉMISSION · {teamMark(team)} {teamName(state, team)}
       </p>
+      <Coach text={currentRound(state).number === 1 ? "Garde le doigt appuyé jusqu’à 100 %. Si tu lâches, la liaison coupe." : null} />
       <div class="transmit__clues">
         {encoded.map((line, index) => (
           <div class="transmit__clue" key={index}>
@@ -534,13 +577,18 @@ function TransmitView({
 // ---------------------------------------------------------------------------
 // Décodage allié ou interception
 
-export function DecodeScreen({ state, team, dispatch, toast }: ScreenProps) {
+export function DecodeScreen({ state, team, dispatch, toast, announce = false }: ScreenProps & { announce?: boolean }) {
   const round = currentRound(state);
   const active = state.active;
   const own = team === active;
   const transmission = round.transmissions[active];
   const [guess, setGuess] = useState<(number | null)[]>([null, null, null]);
   const [showNotebook, setShowNotebook] = useState(!own);
+  const [guide] = useGuide();
+  // Deux téléphones : pas d’écran de passage, l’indicatif annonce le signal reçu.
+  useEffect(() => {
+    if (announce) callSign(team);
+  }, []);
   const complete = guess.every((digit) => digit !== null);
   const pending = (transmission.clues ?? []).map((clue, index) => ({ clue, position: guess[index] }));
 
@@ -550,6 +598,18 @@ export function DecodeScreen({ state, team, dispatch, toast }: ScreenProps) {
       vibrate(40);
     }
   };
+
+  // Poser le téléphone écran contre la table verrouille la réponse.
+  const flip = useFlipGesture({
+    onDown: () => {
+      if (complete) lock();
+      else {
+        play("error");
+        vibrate([30, 40, 30]);
+        toast("Choisissez les trois positions avant de poser le téléphone.");
+      }
+    },
+  });
 
   return (
     <div class="screen screen--split">
@@ -566,7 +626,15 @@ export function DecodeScreen({ state, team, dispatch, toast }: ScreenProps) {
         {own ? (
           <>
             <KeywordGrid words={state.teams[team].words} />
-            <p class="hint">{transmission.encryptor} a chiffré ce message et ne participe pas.</p>
+            <Coach
+              text={
+                round.number === 1
+                  ? `${transmission.encryptor} se tait. Pour chaque indice, choisissez le numéro du mot visé, puis VERROUILLER.`
+                  : null
+              }
+            >
+              <p class="hint">{transmission.encryptor} a chiffré ce message et ne participe pas.</p>
+            </Coach>
             {round.number > 1 && (
               <button type="button" class="linkish" onClick={() => setShowNotebook(!showNotebook)}>
                 {showNotebook ? "▾ MASQUER" : "▸ AFFICHER"} NOS INDICES PRÉCÉDENTS
@@ -576,16 +644,26 @@ export function DecodeScreen({ state, team, dispatch, toast }: ScreenProps) {
           </>
         ) : (
           <>
-            <p class="hint">
-              Chaque colonne cache un mot de l’équipe {teamName(state, active)}. Vos choix s’y placent en direct.
-            </p>
+            <Coach
+              text={
+                round.number === 2
+                  ? `Première interception ! Leurs anciens indices sont rangés sous chaque numéro : devinez leur code. Deux interceptions et vous gagnez.`
+                  : null
+              }
+            >
+              <p class="hint">
+                Chaque colonne cache un mot de l’équipe {teamName(state, active)}. Vos choix s’y placent en direct.
+              </p>
+            </Coach>
             <Notebook state={state} team={active} pending={pending} />
           </>
         )}
       </div>
       <div class="screen__main">
         <Panel title={`SIGNAL ${teamName(state, active)} · MANCHE ${round.number}`}>
-          <p class="hint picker-hint">Pour chaque indice, choisissez la position du mot-clé qu’il désigne.</p>
+          {!(guide && own && round.number === 1) && (
+            <p class="hint picker-hint">Pour chaque indice, choisissez la position du mot-clé qu’il désigne.</p>
+          )}
           <GuessPicker clues={transmission.clues ?? []} value={guess} onChange={setGuess} />
         </Panel>
         <div class="lock-row">
@@ -594,6 +672,7 @@ export function DecodeScreen({ state, team, dispatch, toast }: ScreenProps) {
             VERROUILLER
           </Button>
         </div>
+        {flip.enabled && flip.sensor && complete && <p class="flip-hint">ou posez le téléphone écran contre la table</p>}
       </div>
     </div>
   );
@@ -622,25 +701,71 @@ export function RevealScreen({
   const own = state.teams[active];
   const opp = state.teams[opponent];
   const [stage, setStage] = useState(reducedMotion() ? 3 : 0);
+  // Interception : la couleur de l’équipe qui a intercepté envahit l’écran.
+  const [invasion, setInvasion] = useState<"in" | "out" | null>(null);
+  // Malentendu : l’image décroche un instant.
+  const [glitch, setGlitch] = useState(false);
+  const timersRef = useRef<number[]>([]);
+
+  // Téléphone posé écran contre la table quand le résultat arrive : on attend
+  // qu’il soit retourné, puis compte à rebours, et seulement alors la révélation.
+  const flip = useFlip();
+  const [gate, setGate] = useState<"down" | number | null>(() => (flip.enabled && flip.down ? "down" : null));
+  const gateTimers = useRef<number[]>([]);
+  const openGate = () => {
+    if (gate !== "down") return;
+    const steps = reducedMotion() ? [] : [3, 2, 1];
+    steps.forEach((n, i) =>
+      gateTimers.current.push(
+        window.setTimeout(() => {
+          setGate(n);
+          play("reel");
+          vibrate(20);
+        }, i * 650),
+      ),
+    );
+    gateTimers.current.push(window.setTimeout(() => setGate(null), steps.length * 650));
+  };
+  useFlipGesture({ onUp: openGate });
+  useEffect(() => () => gateTimers.current.forEach(clearTimeout), []);
+  const revealed = gate === null;
 
   useEffect(() => {
-    if (reducedMotion()) return;
-    const timers: number[] = [];
+    holdHud({ miscommunication: true, interception: true });
+    return () => holdHud(null);
+  }, []);
+
+  useEffect(() => {
+    if (!revealed || reducedMotion()) return;
+    const timers = timersRef.current;
     const at = (ms: number, fn: () => void) => timers.push(window.setTimeout(fn, ms));
     at(1900, () => {
       setStage(1);
+      holdHud({ miscommunication: false, interception: true });
       if (understood) {
         play("success");
         vibrate(60);
       } else {
         play("fail");
         vibrate([60, 40, 140]);
+        setGlitch(true);
+        at(650, () => setGlitch(false));
       }
     });
     if (intercepted) {
-      at(2700, () => scramble("INTERCEPTÉ !"));
-      at(4200, () => setStage(2));
-      at(4700, () => {
+      at(2800, () => {
+        setInvasion("in");
+        play("intercept");
+        vibrate([40, 30, 40, 30, 220]);
+      });
+      at(3150, () => callSign(opponent));
+      at(3700, () => play("static"));
+      at(5000, () => setInvasion("out"));
+      at(5450, () => {
+        setInvasion(null);
+        setStage(2);
+      });
+      at(5800, () => {
         setStage(3);
         play("drop");
         vibrate(35);
@@ -651,11 +776,67 @@ export function RevealScreen({
         if (withIntercept) play("key");
       });
     }
-    return () => timers.forEach(clearTimeout);
-  }, []);
+    return () => timersRef.current.forEach(clearTimeout);
+  }, [revealed]);
+
+  // Le jeton d’interception ne s’allume dans le bandeau qu’en tombant.
+  useEffect(() => {
+    if (revealed && stage >= 3) holdHud(null);
+  }, [stage, revealed]);
+
+  // Un toucher sur l’invasion la fait refluer tout de suite.
+  const skipInvasion = () => {
+    if (invasion !== "in") return;
+    timersRef.current.forEach(clearTimeout);
+    setInvasion("out");
+    timersRef.current = [
+      window.setTimeout(() => {
+        setInvasion(null);
+        setStage(3);
+        play("drop");
+      }, 450),
+    ];
+  };
+
+  if (!revealed) {
+    return (
+      <div class="screen screen--center reveal-gate">
+        {gate === "down" ? (
+          <>
+            <span class="eyebrow">
+              SIGNAL {teamMark(active)} {teamName(state, active)} · RÉSULTAT PRÊT
+            </span>
+            <h1 class="display">RETOURNEZ LE TÉLÉPHONE</h1>
+            <p class="hint">Tous ensemble, pour la révélation.</p>
+            <button type="button" class="linkish" onClick={openGate}>
+              révéler sans retourner
+            </button>
+          </>
+        ) : (
+          <b class="reveal-gate__count" key={gate}>
+            {gate}
+          </b>
+        )}
+      </div>
+    );
+  }
 
   return (
-    <div class="screen screen--split reveal">
+    <div class={`screen screen--split reveal${glitch ? " is-glitch" : ""}`}>
+      {invasion && (
+        <div class={`invasion is-${invasion}`} data-tint={opponent} role="alert" onClick={skipInvasion}>
+          {Array.from({ length: 14 }, (_, i) => (
+            <i key={i} class="invasion__band" style={{ "--i": i }} />
+          ))}
+          <div class="invasion__text">
+            <span class="invasion__who">
+              {teamMark(opponent)} {teamName(state, opponent)}
+            </span>
+            <b class="invasion__big">INTERCEPTÉ</b>
+            <span class="invasion__sub">a percé le code de l’équipe {teamName(state, active)}</span>
+          </div>
+        </div>
+      )}
       <div class="screen__side">
         <p class="prompt">
           &gt; RÉVÉLATION · SIGNAL <TeamTag team={active} state={state} />
@@ -715,6 +896,10 @@ export function RevealScreen({
           <p class={`verdict verdict--note${stage >= 1 ? " is-in" : ""}`}>Pas d’interception pendant la première manche.</p>
         )}
 
+        {round.number === 1 && stage >= 3 && (
+          <Coach text="Ces indices sont maintenant gravés dans le carnet. Tirez le bandeau du haut pour le relire à tout moment." />
+        )}
+
         <Button onClick={onContinue} class="btn--big">
           {continueLabel}
         </Button>
@@ -747,6 +932,7 @@ export function SummaryScreen({ state, onContinue }: { state: GameState; onConti
             <i key={i} class={i < round ? "on" : ""} />
           ))}
         </div>
+        <Coach text={round === 1 ? "Nouveaux crypteurs. Et désormais, chaque équipe peut intercepter le code de l’autre." : null} />
         <p class="hint">
           {round} manche{round > 1 ? "s" : ""} jouée{round > 1 ? "s" : ""} sur {state.settings.maxRounds} au maximum
           {next === state.settings.maxRounds ? " · la prochaine est la dernière !" : "."}
@@ -874,8 +1060,40 @@ export function GameOverScreen({ state, onRematch, onMenu }: { state: GameState;
   }, []);
   const rounds = state.rounds.filter((round) => round.transmissions.A.revealed || round.transmissions.B.revealed);
 
+  // Dossier déclassifié : image de la partie, prête à partager.
+  const [dossier, setDossier] = useState<{ url: string; blob: Blob } | null>(null);
+  const [shareNote, setShareNote] = useState("");
+  const openDossier = async () => {
+    play("teletype");
+    const blob = await dossierBlob(await renderDossier(state));
+    if (blob) setDossier({ url: URL.createObjectURL(blob), blob });
+  };
+  useEffect(() => () => dossier && URL.revokeObjectURL(dossier.url), [dossier]);
+
   return (
     <div class="screen screen--split victory">
+      {dossier && (
+        <div class="dossier" role="dialog" aria-modal="true" aria-label="Dossier déclassifié" onClick={() => setDossier(null)}>
+          <div class="dossier__sheet" onClick={(event) => event.stopPropagation()}>
+            <img src={dossier.url} alt="Dossier déclassifié de la partie" />
+            <div class="actions">
+              <Button variant="ghost" onClick={() => setDossier(null)}>
+                FERMER
+              </Button>
+              <Button
+                class="btn--big"
+                onClick={async () => {
+                  const outcome = await shareDossier(dossier.blob);
+                  setShareNote(outcome === "saved" ? "Image enregistrée dans les téléchargements." : "");
+                }}
+              >
+                PARTAGER ▶
+              </Button>
+            </div>
+            {shareNote && <p class="hint">{shareNote}</p>}
+          </div>
+        </div>
+      )}
       <div class="screen__side victory__head">
         {result.winner !== "draw" && <PixelIcon name="trophy" size={84} class="victory__trophy" />}
         <h1 class="display display--xl">
@@ -945,6 +1163,9 @@ export function GameOverScreen({ state, onRematch, onMenu }: { state: GameState;
             </p>
           ))}
         </Panel>
+        <button type="button" class="linkish victory__dossier" onClick={() => void openDossier()}>
+          ▣ DOSSIER DÉCLASSIFIÉ · image à partager
+        </button>
         <div class="actions">
           <Button onClick={onMenu} variant="ghost">
             MENU

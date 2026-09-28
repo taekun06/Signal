@@ -1,6 +1,7 @@
 import { useEffect, useState } from "preact/hooks";
 import { enableMotion, keepScreenOn, promptInstall, toggleFullscreen, useDevice } from "../fx/device";
-import { useScreenShape } from "../fx/display";
+import { useGuide, useScreenShape } from "../fx/display";
+import { setFlipEnabled, useFlip } from "../fx/orientation";
 import { play, setSoundEnabled, soundEnabled, unlockAudio } from "../fx/feedback";
 import { type TeamId, MIN_PLAYERS, RuleError } from "../game/rules";
 import { WORDS } from "../game/words";
@@ -10,7 +11,7 @@ import { type OnlineSave, clearOnlineGame, loadOnlineGame } from "../net/onlineG
 import { Button, Crt, PowerCycle, TypeText } from "./kit";
 import { LocalGame } from "./LocalGame";
 import { OnlineGame, OnlineSetup } from "./Online";
-import { type SetupTeam, TeamFields } from "./TeamFields";
+import { type SetupTeam, TeamFields, withAgentNames } from "./TeamFields";
 import { useToast } from "./toast";
 
 type View =
@@ -245,6 +246,8 @@ function PlayChoice({ onOnline, onLocal, onBack }: { onOnline: () => void; onLoc
 function Settings({ onBack }: { onBack: () => void }) {
   const [sound, setSound] = useState(soundEnabled());
   const [shape, setShape] = useScreenShape();
+  const [guide, setGuide] = useGuide();
+  const flip = useFlip();
   const device = useDevice();
   return (
     <div class="screen screen--center menu">
@@ -262,6 +265,14 @@ function Settings({ onBack }: { onBack: () => void }) {
         <Button variant="ghost" onClick={() => setShape(shape === "curved" ? "flat" : "curved")}>
           ▶ ÉCRAN : {shape === "curved" ? "BOMBÉ" : "PLAT"}
           <small>{shape === "curved" ? "Tube cathodique légèrement bombé" : "Écran plat, lisibilité maximale"}</small>
+        </Button>
+        <Button variant="ghost" onClick={() => setGuide(!guide)}>
+          ▶ GUIDE : {guide ? "ACTIVÉ" : "COUPÉ"}
+          <small>Le terminal souffle quoi faire pendant la première manche</small>
+        </Button>
+        <Button variant="ghost" onClick={() => setFlipEnabled(!flip.enabled)}>
+          ▶ TÉLÉPHONE RETOURNÉ : {flip.enabled ? "ACTIVÉ" : "COUPÉ"}
+          <small>Poser l’écran contre la table verrouille une réponse ou passe la main</small>
         </Button>
         {device.canFullscreen && (
           <Button variant="ghost" onClick={() => void toggleFullscreen()}>
@@ -303,7 +314,7 @@ function Setup({ onBack, onStart }: { onBack: () => void; onStart: (save: LocalS
 
   const start = () => {
     try {
-      const save = newLocalGame({ teams });
+      const save = newLocalGame({ teams: { A: withAgentNames(teams.A), B: withAgentNames(teams.B) } });
       try {
         localStorage.setItem(SETUP_KEY, JSON.stringify(teams));
       } catch {
@@ -322,7 +333,7 @@ function Setup({ onBack, onStart }: { onBack: () => void; onStart: (save: LocalS
     <div class="screen setup">
       <p class="prompt">&gt; NOUVELLE PARTIE · UN TÉLÉPHONE</p>
       <p class="hint">
-        Au moins {MIN_PLAYERS} joueurs par équipe. Le crypteur change à chaque manche, dans l’ordre de la liste.
+        Au moins {MIN_PLAYERS} joueurs par équipe, prénoms facultatifs (sinon : « Agent 1 », « Agent 2 »…). Le crypteur change à chaque manche, dans l’ordre de la liste.
       </p>
       <div class="setup__teams">
         {(["A", "B"] as TeamId[]).map((team) => (
@@ -334,7 +345,7 @@ function Setup({ onBack, onStart }: { onBack: () => void; onStart: (save: LocalS
           ◀ RETOUR
         </Button>
         <Button onClick={start} class="btn--big" sound={null}>
-          LANCER LA PARTIE ▶
+          LANCER ▶
         </Button>
       </div>
       {toastNode}

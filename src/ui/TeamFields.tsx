@@ -5,6 +5,11 @@ export interface SetupTeam {
   players: string[];
 }
 
+/** Prénoms facultatifs : une case vide devient « Agent 1 », « Agent 2 »… */
+export function withAgentNames(team: SetupTeam): SetupTeam {
+  return { ...team, players: team.players.map((player, index) => player.trim() || `Agent ${index + 1}`) };
+}
+
 /** Nom d’une équipe et liste de ses joueurs (ordre de passage du crypteur). */
 export function TeamFields({ team, value, onChange }: { team: TeamId; value: SetupTeam; onChange: (patch: Partial<SetupTeam>) => void }) {
   return (
@@ -28,7 +33,7 @@ export function TeamFields({ team, value, onChange }: { team: TeamId; value: Set
               value={player}
               maxLength={16}
               autocomplete="off"
-              placeholder={`Joueur ${index + 1}`}
+              placeholder={`Agent ${index + 1}`}
               onInput={(event) => {
                 const players = [...value.players];
                 players[index] = (event.currentTarget as HTMLInputElement).value;

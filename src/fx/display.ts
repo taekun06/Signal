@@ -120,3 +120,38 @@ export function useImmersion(): [Immersion, (value: Immersion) => void] {
   };
   return [value, update];
 }
+
+// ---------------------------------------------------------------------------
+// Guide : le terminal souffle quoi faire pendant la première manche (et la
+// première interception). Activé par défaut, coupable depuis les réglages.
+
+const GUIDE_KEY = "signal-zero:guide";
+const guideListeners = new Set<(value: boolean) => void>();
+
+let guide = (() => {
+  try {
+    return localStorage.getItem(GUIDE_KEY) !== "off";
+  } catch {
+    return true;
+  }
+})();
+
+export function useGuide(): [boolean, (value: boolean) => void] {
+  const [value, setValue] = useState(guide);
+  useEffect(() => {
+    guideListeners.add(setValue);
+    return () => {
+      guideListeners.delete(setValue);
+    };
+  }, []);
+  const update = (next: boolean) => {
+    guide = next;
+    try {
+      localStorage.setItem(GUIDE_KEY, next ? "on" : "off");
+    } catch {
+      /* Réglage conservé pour la session. */
+    }
+    guideListeners.forEach((listener) => listener(next));
+  };
+  return [value, update];
+}
