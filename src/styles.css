@@ -22,7 +22,15 @@
   --display: "VT323", "Courier New", monospace;
   --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
   --aberration: -1.2px 0 rgba(255, 40, 90, 0.55), 1.2px 0 rgba(40, 170, 255, 0.55);
-  color-scheme: dark;
+  color-scheme: only dark;
+}
+
+/* Signale aux navigateurs qui forcent un mode sombre (Samsung Internet
+   notamment) que le jeu le gère déjà : ils laissent alors les couleurs intactes. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: only dark;
+  }
 }
 
 [data-tint="A"] {

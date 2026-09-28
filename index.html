@@ -4,6 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no, interactive-widget=resizes-content" />
     <meta name="theme-color" content="#030201" />
+    <!-- Le jeu est déjà sombre : empêche le mode sombre du téléphone
+         (Chrome, Samsung Internet) de repeindre les couleurs du tube. -->
+    <meta name="color-scheme" content="only dark" />
+    <meta name="darkreader-lock" />
     <meta name="description" content="SIGNAL//ZÉRO — jeu de transmission et d'interception de codes, inspiré de Decrypto." />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -18,6 +22,7 @@
       body {
         margin: 0;
         background: #030201;
+        color-scheme: only dark;
       }
     </style>
   </head>
