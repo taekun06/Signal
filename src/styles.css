@@ -3426,3 +3426,253 @@ button:disabled {
 .listen .countdown {
   font-size: 34px;
 }
+
+/* ------------------------------------------------------------------------ */
+/* Carnet des indices : on tire le bandeau des scores vers le bas            */
+
+.hud-pull {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  cursor: pointer;
+  touch-action: pan-x;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.hud-pull .hud {
+  border-bottom: 0;
+  padding-bottom: 2px;
+}
+
+.hud-pull__grip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 400 14px/1 var(--display);
+  letter-spacing: 0.2em;
+  color: var(--dim);
+  padding-bottom: 6px;
+  border-bottom: 1px dashed var(--faint);
+}
+
+.hud-pull__grip::before,
+.hud-pull__grip::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--faint), transparent);
+}
+
+.hud-pull:focus-visible {
+  outline: 1px solid var(--ph);
+  outline-offset: 3px;
+}
+
+.carnet {
+  position: fixed;
+  inset: 0;
+  z-index: 19;
+  display: flex;
+  flex-direction: column;
+  background: rgba(0, 0, 0, 0.74);
+  animation: carnet-fade 0.2s ease-out both;
+}
+
+.carnet.is-closing {
+  animation: carnet-fade 0.2s ease-in reverse both;
+}
+
+.carnet__panel {
+  max-height: 92%;
+  overflow-y: auto;
+  display: grid;
+  gap: 12px;
+  padding: calc(var(--pad-top) + 6px) var(--pad-side) 16px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--ph);
+  box-shadow: 0 10px 40px var(--glow);
+  transform-origin: top;
+  animation: carnet-drop 0.32s cubic-bezier(0.2, 0.9, 0.2, 1) both;
+}
+
+.carnet.is-closing .carnet__panel {
+  animation: carnet-drop 0.2s ease-in reverse both;
+}
+
+@keyframes carnet-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes carnet-drop {
+  from {
+    transform: translateY(-40%) scaleY(0.02);
+    filter: brightness(3);
+  }
+  60% {
+    filter: brightness(1.4);
+  }
+}
+
+.carnet__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  touch-action: pan-x;
+}
+
+.carnet__head .prompt {
+  margin: 0;
+}
+
+.carnet__tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border: 1px solid var(--faint);
+}
+
+.carnet__tabs button {
+  display: grid;
+  gap: 3px;
+  padding: 8px 6px;
+  border: 0;
+  background: transparent;
+  color: var(--dim);
+  font: 400 20px/1 var(--display);
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+.carnet__tabs button small {
+  font: 400 11px/1 var(--mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+.carnet__tabs button[aria-selected="true"] {
+  background: var(--wash);
+  color: var(--ph);
+  text-shadow: 0 0 8px var(--glow);
+}
+
+.carnet__grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  min-height: 190px;
+}
+
+.carnet__col {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding: 0 4px;
+  border-left: 1px dashed var(--faint);
+}
+
+.carnet__col:first-child {
+  border-left: 0;
+}
+
+.carnet__num {
+  text-align: center;
+  font: 400 40px/0.95 var(--display);
+  color: var(--hi);
+  text-shadow: 0 0 10px var(--glow);
+}
+
+.carnet__note {
+  width: 100%;
+  min-width: 0;
+  padding: 3px 0;
+  border: 0;
+  border-bottom: 1px dotted var(--faint);
+  background: transparent;
+  color: var(--hi);
+  font: 400 17px/1.1 var(--display);
+  text-align: center;
+  text-transform: uppercase;
+  outline: none;
+}
+
+.carnet__note::placeholder {
+  color: var(--dim);
+  opacity: 0.45;
+  font: 400 11px/1 var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: none;
+}
+
+.carnet__note:focus {
+  border-bottom-color: var(--ph);
+}
+
+.carnet__col ul {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+
+/* Rémanence : plus l’indice est ancien, plus il pâlit et bave. */
+.carnet__ghost {
+  text-align: center;
+  font: 400 19px/1 var(--display);
+  color: var(--ph);
+  text-transform: uppercase;
+  overflow-wrap: break-word;
+  opacity: var(--o, 1);
+  filter: blur(var(--b, 0));
+  text-shadow:
+    0 0 7px var(--glow),
+    1.5px 0 0 var(--wash);
+}
+
+.carnet__ghost sup {
+  font: 400 9px/1 var(--mono);
+  color: var(--dim);
+  margin-right: 2px;
+  vertical-align: 5px;
+}
+
+.carnet__ghost.is-fresh {
+  animation: carnet-burn 1.8s ease-out 0.25s both;
+}
+
+@keyframes carnet-burn {
+  0% {
+    color: #fff;
+    opacity: 1;
+    filter: none;
+    text-shadow:
+      0 0 16px #fff,
+      0 0 28px var(--glow);
+  }
+}
+
+.carnet__empty {
+  text-align: center;
+  color: var(--faint);
+  font: 400 18px/1 var(--display);
+}
+
+.carnet__hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--dim);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .carnet,
+  .carnet__panel,
+  .carnet__ghost.is-fresh {
+    animation: none;
+  }
+}

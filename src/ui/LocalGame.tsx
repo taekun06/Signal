@@ -3,6 +3,7 @@ import { type TeamId, currentRound, endOfRoundResult, otherTeam, pendingTeams } 
 import { type LocalSave, randomSeed, useLocalGame } from "../net/localGame";
 import { Crt, HeaderBar, PowerCycle, RoundSteps, teamMark } from "./kit";
 import { CluesScreen, DecodeScreen, GameOverScreen, HandoffScreen, RevealScreen, SummaryScreen, TiebreakScreen } from "./screens";
+import { CarnetPull } from "./Carnet";
 import { PauseMenu } from "./PauseMenu";
 import { useToast } from "./toast";
 
@@ -96,7 +97,9 @@ export function LocalGame({ initial, onExit }: { initial: LocalSave; onExit: () 
     <Crt tint={tint} tension={tension}>
       <div class={`app-frame app-frame--game${fit ? " is-fit" : ""}`}>
         <div class="hud-row">
-          <HeaderBar state={state} label={state.phase === "tiebreak" ? "DÉPARTAGE" : undefined} focus={actor} />
+          <CarnetPull state={state} viewer={handoff ? undefined : actor}>
+            <HeaderBar state={state} label={state.phase === "tiebreak" ? "DÉPARTAGE" : undefined} focus={actor} />
+          </CarnetPull>
           <button type="button" class="menu-btn" aria-label="Menu" onClick={() => setMenuOpen(true)}>
             ≡
           </button>
