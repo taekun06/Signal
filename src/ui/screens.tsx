@@ -2,7 +2,7 @@ import type { ComponentChildren } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { PHOSPHOR, runOscilloscope } from "../fx/canvasFx";
 import { useGuide, useImmersion, useKeyboardKind } from "../fx/display";
-import { morse, play, scramble, vibrate } from "../fx/feedback";
+import { morse, play, vibrate } from "../fx/feedback";
 import {
   type Action,
   type GameState,
@@ -18,7 +18,7 @@ import {
 } from "../game/rules";
 import { PixelIcon } from "./icons";
 import { type KeyboardInput, RetroKeyboard } from "./keyboard";
-import { Button, Coach, Countdown, LETTERS, Panel, TeamTag, TypeText, reducedMotion, teamMark } from "./kit";
+import { Button, Coach, Countdown, holdHud, LETTERS, Panel, TeamTag, TypeText, reducedMotion, teamMark } from "./kit";
 import { CodeDigits, GuessPicker, KeywordGrid, MechanicalCode, Notebook } from "./widgets";
 
 export interface ScreenProps {
@@ -658,25 +658,43 @@ export function RevealScreen({
   const own = state.teams[active];
   const opp = state.teams[opponent];
   const [stage, setStage] = useState(reducedMotion() ? 3 : 0);
+  // Interception : la couleur de l’équipe qui a intercepté envahit l’écran.
+  const [invasion, setInvasion] = useState<"in" | "out" | null>(null);
+  // Malentendu : l’image décroche un instant.
+  const [glitch, setGlitch] = useState(false);
+  const timersRef = useRef<number[]>([]);
 
   useEffect(() => {
     if (reducedMotion()) return;
-    const timers: number[] = [];
+    const timers = timersRef.current;
     const at = (ms: number, fn: () => void) => timers.push(window.setTimeout(fn, ms));
+    holdHud({ miscommunication: true, interception: true });
     at(1900, () => {
       setStage(1);
+      holdHud({ miscommunication: false, interception: true });
       if (understood) {
         play("success");
         vibrate(60);
       } else {
         play("fail");
         vibrate([60, 40, 140]);
+        setGlitch(true);
+        at(650, () => setGlitch(false));
       }
     });
     if (intercepted) {
-      at(2700, () => scramble("INTERCEPTÉ !"));
-      at(4200, () => setStage(2));
-      at(4700, () => {
+      at(2800, () => {
+        setInvasion("in");
+        play("intercept");
+        vibrate([40, 30, 40, 30, 220]);
+      });
+      at(3500, () => play("static"));
+      at(5000, () => setInvasion("out"));
+      at(5450, () => {
+        setInvasion(null);
+        setStage(2);
+      });
+      at(5800, () => {
         setStage(3);
         play("drop");
         vibrate(35);
@@ -687,11 +705,47 @@ export function RevealScreen({
         if (withIntercept) play("key");
       });
     }
-    return () => timers.forEach(clearTimeout);
+    return () => {
+      timersRef.current.forEach(clearTimeout);
+      holdHud(null);
+    };
   }, []);
 
+  // Le jeton d’interception ne s’allume dans le bandeau qu’en tombant.
+  useEffect(() => {
+    if (stage >= 3) holdHud(null);
+  }, [stage]);
+
+  // Un toucher sur l’invasion la fait refluer tout de suite.
+  const skipInvasion = () => {
+    if (invasion !== "in") return;
+    timersRef.current.forEach(clearTimeout);
+    setInvasion("out");
+    timersRef.current = [
+      window.setTimeout(() => {
+        setInvasion(null);
+        setStage(3);
+        play("drop");
+      }, 450),
+    ];
+  };
+
   return (
-    <div class="screen screen--split reveal">
+    <div class={`screen screen--split reveal${glitch ? " is-glitch" : ""}`}>
+      {invasion && (
+        <div class={`invasion is-${invasion}`} data-tint={opponent} role="alert" onClick={skipInvasion}>
+          {Array.from({ length: 14 }, (_, i) => (
+            <i key={i} class="invasion__band" style={{ "--i": i }} />
+          ))}
+          <div class="invasion__text">
+            <span class="invasion__who">
+              {teamMark(opponent)} {teamName(state, opponent)}
+            </span>
+            <b class="invasion__big">INTERCEPTÉ</b>
+            <span class="invasion__sub">a percé le code de l’équipe {teamName(state, active)}</span>
+          </div>
+        </div>
+      )}
       <div class="screen__side">
         <p class="prompt">
           &gt; RÉVÉLATION · SIGNAL <TeamTag team={active} state={state} />

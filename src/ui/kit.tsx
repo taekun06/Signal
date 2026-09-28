@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { PHOSPHOR, runScramble } from "../fx/canvasFx";
 import { supportsWarp, useGuide, useImmersion, useScreenShape } from "../fx/display";
 import { play, screenLoad, setTension, vibrate } from "../fx/feedback";
-import { type GameState, type TeamId, TEAM_IDS, currentRound } from "../game/rules";
+import { type GameState, type TeamId, TEAM_IDS, currentRound, interceptionAllowed, otherTeam, sameCode } from "../game/rules";
 
 export type Tint = TeamId;
 
@@ -445,8 +445,49 @@ export function TeamTag({ team, state }: { team: TeamId; state: GameState }) {
   );
 }
 
+// Pendant la révélation, les voyants ne s’allument qu’au moment où le verdict
+// tombe à l’écran : le bandeau ne doit rien trahir d’avance.
+type HudHold = { miscommunication: boolean; interception: boolean };
+const NO_HOLD: HudHold = { miscommunication: false, interception: false };
+let hudHold = NO_HOLD;
+const hudListeners = new Set<(hold: HudHold) => void>();
+
+export function holdHud(hold: HudHold | null): void {
+  hudHold = hold ?? NO_HOLD;
+  hudListeners.forEach((listener) => listener(hudHold));
+}
+
+function useHudHold(): HudHold {
+  const [hold, setHold] = useState(hudHold);
+  useEffect(() => {
+    hudListeners.add(setHold);
+    return () => {
+      hudListeners.delete(setHold);
+    };
+  }, []);
+  return hold;
+}
+
+/** Scores tels que le bandeau doit les montrer, verdicts pas encore tombés retirés. */
+function shownScores(state: GameState, hold: HudHold) {
+  const scores = Object.fromEntries(
+    TEAM_IDS.map((team) => [team, { interceptions: state.teams[team].interceptions, miscommunications: state.teams[team].miscommunications }]),
+  ) as Record<TeamId, { interceptions: number; miscommunications: number }>;
+  if (state.phase !== "reveal") return scores;
+  const transmission = currentRound(state).transmissions[state.active];
+  if (hold.miscommunication && !sameCode(transmission.ownGuess, transmission.code)) {
+    scores[state.active].miscommunications = Math.max(0, scores[state.active].miscommunications - 1);
+  }
+  if (hold.interception && interceptionAllowed(state) && sameCode(transmission.interceptGuess, transmission.code)) {
+    const opponent = otherTeam(state.active);
+    scores[opponent].interceptions = Math.max(0, scores[opponent].interceptions - 1);
+  }
+  return scores;
+}
+
 export function HeaderBar({ state, label, focus }: { state: GameState; label?: string; focus?: TeamId }) {
   const round = currentRound(state).number;
+  const scores = shownScores(state, useHudHold());
   return (
     <header class="hud">
       <div class="hud__top">
@@ -457,7 +498,8 @@ export function HeaderBar({ state, label, focus }: { state: GameState; label?: s
       </div>
       <div class="hud__teams">
         {TEAM_IDS.map((team) => {
-          const { name, interceptions, miscommunications } = state.teams[team];
+          const { name } = state.teams[team];
+          const { interceptions, miscommunications } = scores[team];
           return (
             <div
               class={`hud__team${focus === team ? " is-focus" : ""}`}

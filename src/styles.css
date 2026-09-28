@@ -3777,3 +3777,31 @@ button:disabled {
 .coach { margin:6px 0; padding:2px 0 2px 10px; border-left:2px solid var(--ph); color:var(--hi); font-family:"IBM Plex Mono", monospace; font-size:13px; line-height:1.45; text-shadow:0 0 6px var(--glow); }
 .coach__head { display:flex; justify-content:space-between; align-items:baseline; color:var(--dim); font-family:"VT323", monospace; font-size:14px; letter-spacing:.14em; }
 .coach__off { padding:0; letter-spacing:0; border:0; background:none; color:var(--faint); font-family:"IBM Plex Mono", monospace; font-size:11px; text-decoration:underline; text-underline-offset:2px; cursor:pointer; }
+
+/* Interception : la couleur de l’équipe qui intercepte envahit l’écran par
+   bandes de balayage, en vidéo inversée, puis reflue. */
+.invasion { position:fixed; inset:0; z-index:60; display:grid; place-items:center; overflow:hidden; cursor:pointer; }
+.invasion__band { position:absolute; left:0; right:0; top:calc(var(--i) * 100% / 14); height:calc(100% / 14 + 1px); background:repeating-linear-gradient(0deg, var(--ph) 0 3px, var(--hi) 3px 4px); box-shadow:0 0 34px var(--glow); transform:scaleX(0); transform-origin:left; animation:band-in .36s cubic-bezier(.7,0,.3,1) calc(var(--i) * 26ms) forwards; }
+.invasion__band:nth-child(even) { transform-origin:right; }
+.invasion.is-out .invasion__band { transform:scaleX(1); animation:band-out .36s cubic-bezier(.7,0,.3,1) calc((13 - var(--i)) * 16ms) forwards; }
+.invasion__text { position:relative; display:grid; gap:10px; justify-items:center; padding:0 16px; text-align:center; color:var(--bg); opacity:0; animation:inv-text .24s steps(3) .5s forwards; }
+.invasion.is-out .invasion__text { animation:none; opacity:0; }
+.invasion__who, .invasion__sub { font-family:"IBM Plex Mono", monospace; font-size:15px; font-weight:600; letter-spacing:.18em; text-transform:uppercase; }
+.invasion__sub { font-size:12px; letter-spacing:.08em; text-transform:none; }
+.invasion__big { font:400 clamp(54px, 17vw, 110px)/.9 var(--display); letter-spacing:.04em; text-shadow:3px 0 0 rgba(0,0,0,.25); animation:inv-jitter .14s steps(2) .5s infinite; }
+@keyframes band-in { to { transform:scaleX(1); } }
+@keyframes band-out { to { transform:scaleX(0); } }
+@keyframes inv-text { to { opacity:1; } }
+@keyframes inv-jitter { 0% { transform:translate(-2px, 0); } 100% { transform:translate(2px, 1px); } }
+
+/* Malentendu : l’image décroche un instant. */
+.reveal.is-glitch { animation:reveal-glitch .65s steps(1) both; }
+@keyframes reveal-glitch {
+  0% { transform:none; }
+  12% { transform:translate(-7px, 1px) skewX(5deg); filter:brightness(1.7); }
+  26% { transform:translate(6px, -2px); clip-path:inset(12% 0 38% 0); }
+  40% { transform:translate(-3px, 0); clip-path:inset(52% 0 6% 0); filter:brightness(.5); }
+  55% { transform:translate(2px, 1px); clip-path:none; filter:none; }
+  70% { transform:translate(-1px, 0); }
+  100% { transform:none; }
+}
