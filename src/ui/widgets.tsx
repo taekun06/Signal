@@ -1,4 +1,4 @@
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { useImmersion } from "../fx/display";
 import { play, vibrate } from "../fx/feedback";
 import { type Code, type GameState, type TeamId, notebook } from "../game/rules";
@@ -284,22 +284,160 @@ export function GuessPicker({
                 <TypeText text={clue} delay={250 + row * 650} speed={55} bell />
               )}</span>
           </span>
-          <span class="picker__digits" role="group" aria-label={`Position de l’indice ${clue}`}>
-            {[1, 2, 3, 4].map((digit) => (
-              <button
-                type="button"
-                key={digit}
-                class={value[row] === digit ? "is-on" : value.includes(digit) ? "is-used" : ""}
-                aria-pressed={value[row] === digit}
-                onClick={() => pick(row, digit)}
-              >
-                {digit}
-              </button>
-            ))}
-          </span>
+          <DigitRail
+            label={`Position de l’indice ${clue}`}
+            row={row}
+            value={value}
+            onPick={(digit) => pick(row, digit)}
+            onSlide={(digit) => place(value, onChange, row, digit)}
+          />
         </div>
       ))}
     </div>
+  );
+}
+
+/**
+ * Les quatre chiffres d’un indice, posés sur une ligne de phosphore.
+ * On touche un chiffre, ou on glisse le doigt de côté : le faisceau suit
+ * le doigt, cranté sur chaque chiffre, et se fixe au lâcher.
+ */
+function DigitRail({
+  label,
+  row,
+  value,
+  onPick,
+  onSlide,
+}: {
+  label: string;
+  row: number;
+  value: (number | null)[];
+  onPick: (digit: number) => void;
+  onSlide: (digit: number) => void;
+}) {
+  const rail = useRef<HTMLSpanElement>(null);
+  const [beam, setBeam] = useState<number | null>(null);
+  const [hover, setHover] = useState<number | null>(null);
+  const [rest, setRest] = useState<number | null>(null);
+  const swallow = useRef(false);
+  const chosen = value[row];
+
+  const centres = () => {
+    const box = rail.current;
+    if (!box) return [];
+    const left = box.getBoundingClientRect().left;
+    return [...box.querySelectorAll("button")].map((button) => {
+      const rect = button.getBoundingClientRect();
+      return { from: rect.left - left, to: rect.right - left, mid: rect.left - left + rect.width / 2 };
+    });
+  };
+
+  useLayoutEffect(() => {
+    const measure = () => setRest(chosen ? (centres()[chosen - 1]?.mid ?? null) : null);
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [chosen]);
+
+  const down = (event: PointerEvent) => {
+    if (event.button > 0) return;
+    const box = event.currentTarget as HTMLSpanElement;
+    const startX = event.clientX;
+    const startY = event.clientY;
+    let sliding = false;
+    let notch: number | null = null;
+
+    const at = (clientX: number) => {
+      const x = clientX - box.getBoundingClientRect().left;
+      const slots = centres();
+      let best = 0;
+      slots.forEach((slot, index) => {
+        if (Math.abs(slot.mid - x) < Math.abs(slots[best].mid - x)) best = index;
+      });
+      const min = slots[0]?.from ?? 0;
+      const max = slots[slots.length - 1]?.to ?? x;
+      return { x: Math.min(max, Math.max(min, x)), digit: best + 1 };
+    };
+
+    const move = (ev: PointerEvent) => {
+      if (ev.pointerId !== event.pointerId) return;
+      const dx = ev.clientX - startX;
+      if (!sliding) {
+        if (Math.abs(dx) < 8 || Math.abs(dx) < Math.abs(ev.clientY - startY)) return;
+        sliding = true;
+        try {
+          box.setPointerCapture(event.pointerId);
+        } catch {
+          // Le glisser marche aussi sans capture.
+        }
+      }
+      ev.preventDefault();
+      const spot = at(ev.clientX);
+      setBeam(spot.x);
+      if (spot.digit !== notch) {
+        notch = spot.digit;
+        setHover(notch);
+        play("tick");
+        vibrate(5);
+      }
+    };
+
+    const end = (ev: PointerEvent) => {
+      if (ev.pointerId !== event.pointerId) return;
+      box.removeEventListener("pointermove", move);
+      box.removeEventListener("pointerup", end);
+      box.removeEventListener("pointercancel", end);
+      if (!sliding) return;
+      swallow.current = true;
+      setTimeout(() => (swallow.current = false), 0);
+      setBeam(null);
+      setHover(null);
+      if (ev.type === "pointerup" && notch) onSlide(notch);
+      else play("fade");
+    };
+
+    box.addEventListener("pointermove", move, { passive: false });
+    box.addEventListener("pointerup", end);
+    box.addEventListener("pointercancel", end);
+  };
+
+  const x = beam ?? rest;
+  return (
+    <span
+      ref={rail}
+      class={`picker__digits${beam !== null ? " is-sliding" : ""}`}
+      role="group"
+      aria-label={label}
+      onPointerDown={down}
+      onClickCapture={(event) => {
+        if (swallow.current) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      }}
+    >
+      {[1, 2, 3, 4].map((digit) => (
+        <button
+          type="button"
+          key={digit}
+          class={[
+            value[row] === digit ? "is-on" : value.includes(digit) ? "is-used" : "",
+            hover === digit ? "is-hover" : "",
+          ].join(" ").trim()}
+          aria-pressed={value[row] === digit}
+          onClick={() => onPick(digit)}
+        >
+          {digit}
+        </button>
+      ))}
+      <i class="picker__line" aria-hidden="true" />
+      {x !== null ? (
+        <>
+          <i class="picker__trail" aria-hidden="true" style={{ transform: `translateX(${x}px)` }} />
+          <i class="picker__beam" aria-hidden="true" style={{ transform: `translateX(${x}px)` }} />
+        </>
+      ) : null}
+    </span>
   );
 }
 
