@@ -25,7 +25,9 @@ type Sound =
   | "beam"
   | "fade"
   | "callA"
-  | "callB";
+  | "callB"
+  | "grab"
+  | "place";
 
 const STORAGE_KEY = "signal-zero:sound";
 
@@ -165,6 +167,16 @@ export function play(sound: Sound): void {
       break;
     case "select":
       tone(880, 0, 0.05, "square", 0.03);
+      break;
+    case "grab":
+      // L’indice se décolle de l’écran : petit crépitement et note qui monte.
+      noise(0, 0.05, 0.05, { type: "highpass", freq: 3000 });
+      tone(520, 0, 0.06, "square", 0.025, 780);
+      break;
+    case "place":
+      // L’indice se grave dans la colonne : coup sourd puis clic de phosphore.
+      tone(140, 0, 0.09, "sine", 0.1, 70);
+      tone(1320, 0.03, 0.04, "square", 0.025);
       break;
     case "send":
       [660, 880, 1320].forEach((f, i) => tone(f, i * 0.07, 0.08, "square", 0.035));

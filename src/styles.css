@@ -1589,6 +1589,68 @@ button:disabled {
   text-shadow: var(--aberration), 0 0 10px var(--glow);
 }
 
+/* L’indice et sa lettre forment une étiquette qu’on détache au doigt. */
+.picker__grab {
+  display: contents;
+}
+
+.picker__grab.is-draggable > * {
+  cursor: grab;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.picker__grab.is-draggable .picker__ord {
+  border-style: dashed;
+}
+
+.picker__row.is-armed .picker__ord,
+.picker__grab.is-lifted .picker__ord {
+  border-style: solid;
+  border-color: var(--ph);
+  background: var(--ph);
+  color: var(--bg);
+  box-shadow: 0 0 12px var(--glow);
+}
+
+.picker__row.is-armed .picker__clue {
+  animation: clue-armed 1.1s steps(2) infinite;
+}
+
+.picker__grab.is-lifted .picker__clue {
+  opacity: 0.3;
+  filter: blur(1px);
+}
+
+@keyframes clue-armed {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* Fantôme de l’indice sous le pouce : hors du tube, il porte ses couleurs. */
+.clue-ghost {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 1000;
+  pointer-events: none;
+  padding: 6px 12px 4px;
+  margin: -58px 0 0 -12px;
+  border: 1px solid var(--ph);
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  color: var(--hi);
+  font: 400 30px/1 var(--display);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  text-shadow: 0 0 10px var(--glow);
+  box-shadow: 0 0 22px var(--glow), inset 0 0 12px var(--glow);
+  will-change: transform;
+}
+
 .picker__digits {
   grid-area: digits;
   display: grid;
@@ -1701,7 +1763,7 @@ button:disabled {
 }
 
 .notebook__head small {
-  font: 400 15px/1 var(--display);
+  font: 400 19px/1 var(--display);
   color: var(--ph);
   letter-spacing: 0.04em;
   max-width: 100%;
@@ -1737,12 +1799,75 @@ button:disabled {
   background: linear-gradient(180deg, var(--wash), transparent);
 }
 
+/* Colonnes qui attendent un indice : pointillés qui respirent. */
+.notebook.is-armed .notebook__col {
+  cursor: pointer;
+  animation: col-wait 1.2s ease-in-out infinite;
+}
+
+@keyframes col-wait {
+  50% {
+    background: var(--wash);
+  }
+}
+
+.notebook__col.is-hover {
+  animation: none;
+  background: var(--bg-hi);
+  box-shadow: inset 0 0 0 1px var(--ph), inset 0 0 18px var(--glow);
+}
+
 .notebook__pending {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
   margin-top: 2px;
-  padding: 2px 3px;
+  padding: 3px 3px 2px;
   border: 1px dashed var(--ph);
   color: var(--ph) !important;
   font-size: 16px !important;
+  animation: clue-burn 0.9s ease-out;
+}
+
+.notebook__pending i {
+  flex: none;
+  font: 600 9px/1 var(--mono);
+  font-style: normal;
+  padding: 2px 3px;
+  background: var(--ph);
+  color: var(--bg);
+  text-shadow: none;
+}
+
+.notebook__pending.is-live {
+  cursor: grab;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* L’indice rangé s’imprime dans le phosphore : éclair blanc puis couleur. */
+@media (prefers-reduced-motion: reduce) {
+  .notebook.is-armed .notebook__col,
+  .notebook__pending,
+  .picker__row.is-armed .picker__clue {
+    animation: none;
+  }
+}
+
+@keyframes clue-burn {
+  0% {
+    color: #fff;
+    border-color: #fff;
+    text-shadow: 0 0 14px #fff, 0 0 26px var(--glow);
+    transform: translateY(-4px);
+  }
+  40% {
+    color: var(--hi);
+  }
+  100% {
+    transform: none;
+  }
 }
 
 .notebook__empty {
