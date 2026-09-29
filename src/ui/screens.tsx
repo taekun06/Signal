@@ -20,7 +20,7 @@ import {
 import { PixelIcon } from "./icons";
 import { type KeyboardInput, RetroKeyboard } from "./keyboard";
 import { Button, Coach, Countdown, holdHud, LETTERS, Panel, TeamTag, TypeText, reducedMotion, teamMark } from "./kit";
-import { CodeDigits, GuessPicker, KeywordGrid, MechanicalCode, Notebook } from "./widgets";
+import { CodeDigits, GuessPicker, KeywordGrid, MechanicalCode, Notebook, dragClue, place } from "./widgets";
 import { dossierBlob, renderDossier, shareDossier } from "./dossier";
 
 export interface ScreenProps {
@@ -583,14 +583,40 @@ export function DecodeScreen({ state, team, dispatch, toast, announce = false }:
   const own = team === active;
   const transmission = round.transmissions[active];
   const [guess, setGuess] = useState<(number | null)[]>([null, null, null]);
-  const [showNotebook, setShowNotebook] = useState(!own);
+  // Indice touché, qui attend qu’on touche sa colonne dans le carnet.
+  const [armed, setArmed] = useState<number | null>(null);
   const [guide] = useGuide();
   // Deux téléphones : pas d’écran de passage, l’indicatif annonce le signal reçu.
   useEffect(() => {
     if (announce) callSign(team);
   }, []);
   const complete = guess.every((digit) => digit !== null);
-  const pending = (transmission.clues ?? []).map((clue, index) => ({ clue, position: guess[index] }));
+  const clues = transmission.clues ?? [];
+  const pending = clues.map((clue, index) => ({ clue, position: guess[index] }));
+
+  // Le carnet sert de table de tri : on y glisse les indices de la manche.
+  const board = {
+    pending,
+    armed: armed !== null,
+    onColumn: (digit: number) => {
+      if (armed === null) return;
+      place(guess, setGuess, armed, digit);
+      setArmed(null);
+    },
+    onPending: (row: number) => {
+      if (armed !== null) return;
+      play("fade");
+      vibrate(6);
+      setGuess(guess.map((digit, index) => (index === row ? null : digit)));
+    },
+    onDragPending: (event: PointerEvent, row: number) =>
+      dragClue(event, clues[row], {
+        onDrop: (digit) => {
+          setArmed(null);
+          place(guess, setGuess, row, digit);
+        },
+      }),
+  };
 
   const lock = () => {
     if (attempt(() => dispatch({ type: "submitGuess", team, guess: guess as number[], round: round.number, active }), toast)) {
@@ -625,46 +651,44 @@ export function DecodeScreen({ state, team, dispatch, toast, announce = false }:
         </p>
         {own ? (
           <>
-            <KeywordGrid words={state.teams[team].words} />
             <Coach
               text={
                 round.number === 1
-                  ? `${transmission.encryptor} se tait. Pour chaque indice, choisissez le numéro du mot visé, puis VERROUILLER.`
+                  ? `${transmission.encryptor} se tait. Glissez chaque indice sous le mot qu’il désigne, puis VERROUILLER.`
                   : null
               }
             >
               <p class="hint">{transmission.encryptor} a chiffré ce message et ne participe pas.</p>
             </Coach>
-            {round.number > 1 && (
-              <button type="button" class="linkish" onClick={() => setShowNotebook(!showNotebook)}>
-                {showNotebook ? "▾ MASQUER" : "▸ AFFICHER"} NOS INDICES PRÉCÉDENTS
-              </button>
-            )}
-            {showNotebook && round.number > 1 && <Notebook state={state} team={team} showWords compact pending={pending} />}
+            <Notebook state={state} team={team} showWords {...board} />
           </>
         ) : (
           <>
             <Coach
               text={
                 round.number === 2
-                  ? `Première interception ! Leurs anciens indices sont rangés sous chaque numéro : devinez leur code. Deux interceptions et vous gagnez.`
+                  ? `Première interception ! Leurs anciens indices sont rangés sous chaque numéro : glissez-y les nouveaux pour deviner leur code. Deux interceptions et vous gagnez.`
                   : null
               }
             >
               <p class="hint">
-                Chaque colonne cache un mot de l’équipe {teamName(state, active)}. Vos choix s’y placent en direct.
+                Chaque colonne cache un mot de l’équipe {teamName(state, active)}. Glissez-y les indices.
               </p>
             </Coach>
-            <Notebook state={state} team={active} pending={pending} />
+            <Notebook state={state} team={active} {...board} />
           </>
         )}
       </div>
       <div class="screen__main">
         <Panel title={`SIGNAL ${teamName(state, active)} · MANCHE ${round.number}`}>
           {!(guide && own && round.number === 1) && (
-            <p class="hint picker-hint">Pour chaque indice, choisissez la position du mot-clé qu’il désigne.</p>
+            <p class="hint picker-hint">
+              {armed !== null
+                ? `Touchez la colonne de l’indice ${LETTERS[armed]} dans le carnet.`
+                : "Glissez chaque indice sous un numéro du carnet, ou touchez son chiffre."}
+            </p>
           )}
-          <GuessPicker clues={transmission.clues ?? []} value={guess} onChange={setGuess} />
+          <GuessPicker clues={clues} value={guess} onChange={setGuess} armed={armed} onArm={setArmed} />
         </Panel>
         <div class="lock-row">
           <CodeDigits code={guess} />
