@@ -1653,9 +1653,79 @@ button:disabled {
 
 .picker__digits {
   grid-area: digits;
+  position: relative;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 6px;
+  padding-bottom: 10px;
+  touch-action: pan-y;
+}
+
+/* Ligne de phosphore sous les chiffres : on y glisse le doigt de côté. */
+.picker__line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 3px;
+  height: 1px;
+  background: var(--faint);
+  transition: background 0.2s, box-shadow 0.2s;
+}
+
+.picker__digits.is-sliding .picker__line {
+  background: var(--ph);
+  box-shadow: 0 0 8px var(--glow);
+}
+
+.picker__beam,
+.picker__trail {
+  position: absolute;
+  left: 0;
+  bottom: 3px;
+  pointer-events: none;
+  transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.picker__beam {
+  width: 18px;
+  height: 3px;
+  margin: 0 0 -1px -9px;
+  background: var(--hi);
+  border-radius: 2px;
+  box-shadow: 0 0 6px var(--ph), 0 0 16px var(--glow);
+}
+
+.picker__trail {
+  width: 40px;
+  height: 1px;
+  margin-left: -20px;
+  background: linear-gradient(90deg, transparent, var(--ph), transparent);
+  opacity: 0.8;
+  filter: blur(1px);
+  transition-duration: 0.45s;
+}
+
+.picker__digits.is-sliding .picker__beam {
+  transition: none;
+  width: 34px;
+  height: 5px;
+  margin: 0 0 -2px -17px;
+  box-shadow: 0 0 8px var(--hi), 0 0 22px var(--ph), 0 -6px 18px var(--glow);
+}
+
+.picker__digits.is-sliding button {
+  touch-action: pan-y;
+}
+
+.picker__digits button.is-hover {
+  border-color: var(--ph);
+  background: var(--bg-hi);
+  box-shadow: inset 0 0 10px var(--glow);
+  opacity: 1;
+}
+
+.picker__digits button.is-on.is-hover {
+  background: var(--ph);
 }
 
 @media (min-width: 380px) {
@@ -1678,7 +1748,7 @@ button:disabled {
   border: 1px solid var(--faint);
   background: transparent;
   font: 400 28px/1 var(--display);
-  touch-action: manipulation;
+  touch-action: pan-y;
 }
 
 .picker__digits button.is-used {
@@ -3961,3 +4031,10 @@ button:disabled {
 .handoff__warn { border:0; background:none; color:var(--dim); }
 .setup__team { border:0; border-top:2px solid var(--ph); padding:12px 0 0; background:none; }
 .clue-row__target { border:0; background:var(--wash); }
+
+@media (prefers-reduced-motion: reduce) {
+  .picker__beam,
+  .picker__trail {
+    transition: none;
+  }
+}
